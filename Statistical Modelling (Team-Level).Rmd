@@ -1,0 +1,140 @@
+---
+title: "Basketball Performance and Winning Assocation Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Initial Loading
+
+The data from the main file of wrangled data and required libraries is loaded.
+```{r}
+library("dplyr")
+library("ggplot2")
+library("infer")
+library("tidymodels")
+load("wrangled_data.RData")
+```
+
+## Statistical Modelling (Team-Level)
+
+In this component of the project, the top 6 variables representative of team performance selected from the Visualization Analysis component will be applied in a logistic regression model to predict whether or not a team wins or loses a basketball game. The data will be split into training and testing sets. 80% of the data will be used as training data to build the model and 20% of the data will be used to assess the performance of the model (testing data). A confusion matrix is constructed to get the accuracy of the model as well.
+
+### Main Classification Model
+
+The main classification model built from the top 6 variables from visualization analysis.
+
+```{r}
+set.seed(100)
+
+regular_season_totals_split<-regular_season_totals|>initial_split(prop=0.8,strata=WL)
+regular_season_totals_training<-training(regular_season_totals_split)
+regular_season_totals_testing<-testing(regular_season_totals_split)
+
+wl_main_recipe<-recipe(WL~fieldGoalsMade+reboundsTotal+assists+freeThrowsMade+threePointersMade+blocks,
+                       data=regular_season_totals_training)|>
+                step_scale(all_predictors())|>
+                step_center(all_predictors())
+
+regular_season_totals_main_classification_model<-logistic_reg()|>
+                                                 set_engine("glm")|>
+                                                 set_mode("classification")
+
+regular_season_totals_main_fit<-workflow()|>add_recipe(wl_main_recipe)|>
+                                            add_model(regular_season_totals_main_classification_model)|>
+                                            fit(data=regular_season_totals_training)
+
+regular_season_totals_main_predictions<-predict(regular_season_totals_main_fit,regular_season_totals_testing,
+                                                type="class")|>
+                                        bind_cols(regular_season_totals_testing)
+
+regular_season_totals_main_predictions_accuracy<-regular_season_totals_main_predictions|>
+                                                 metrics(truth=WL,estimate=.pred_class)|>
+                                                 filter(.metric=="accuracy")
+
+regular_season_totals_main_conf_mat<-regular_season_totals_main_predictions|>
+                                     conf_mat(truth=WL,estimate=.pred_class)
+
+regular_season_totals_main_predictions_accuracy
+regular_season_totals_main_conf_mat
+```
+The model provides approximately 72.01% accuracy using the top 6 variables selected.
+
+<br>
+
+### Comparison with Other Models
+
+To see how well the model using the top 6 variables is performing, it is compared to a model using the bottom 6 variables and a model using all variables.
+```{r}
+set.seed(100)
+
+wl_bottom_recipe<-recipe(WL~fieldGoalsAttempted+freeThrowsAttempted+threePointersAttempted+steals+foulsPersonal+turnovers,
+                         data=regular_season_totals_training)|>
+                         step_scale(all_predictors())|>
+                         step_center(all_predictors())
+
+regular_season_totals_bottom_classification_model<-logistic_reg()|>
+                                                   set_engine("glm")|>
+                                                   set_mode("classification")
+
+regular_season_totals_bottom_fit<-workflow()|>
+                                  add_recipe(wl_bottom_recipe)|>
+                                  add_model(regular_season_totals_bottom_classification_model)|>
+                                  fit(data=regular_season_totals_training)
+
+regular_season_totals_bottom_predictions<-predict(regular_season_totals_bottom_fit,regular_season_totals_testing,
+                                                  type="class")|>
+                                                  bind_cols(regular_season_totals_testing)
+
+regular_season_totals_bottom_predictions_accuracy<-regular_season_totals_bottom_predictions|>
+                                                   metrics(truth=WL,estimate=.pred_class)|>
+                                                   filter(.metric=="accuracy")
+
+regular_season_totals_bottom_conf_mat<-regular_season_totals_bottom_predictions|>
+                                       conf_mat(truth=WL,estimate=.pred_class)
+
+regular_season_totals_bottom_predictions_accuracy
+regular_season_totals_bottom_conf_mat
+```
+Using the bottom 6 variables, an accuracy of only approximately 59.11% is achieved.
+
+<br>
+
+```{r}
+set.seed(100)
+
+wl_all_recipe<-recipe(WL~fieldGoalsMade+reboundsTotal+assists+freeThrowsMade+threePointersMade+blocks+fieldGoalsAttempted+freeThrowsAttempted+threePointersAttempted+steals+foulsPersonal+turnovers,
+                      data=regular_season_totals_training)|>
+                      step_scale(all_predictors())|>
+                      step_center(all_predictors())
+
+regular_season_totals_all_classification_model<-logistic_reg()|>
+                                                set_engine("glm")|>
+                                                set_mode("classification")
+
+regular_season_totals_all_fit<-workflow()|>
+                               add_recipe(wl_all_recipe)|>
+                               add_model(regular_season_totals_all_classification_model)|>
+                               fit(data=regular_season_totals_training)
+
+regular_season_totals_all_predictions<-predict(regular_season_totals_all_fit,regular_season_totals_testing,
+                                               type="class")|>
+                                       bind_cols(regular_season_totals_testing)
+
+regular_season_totals_all_predictions_accuracy<-regular_season_totals_all_predictions|>
+                                                metrics(truth=WL,estimate=.pred_class)|>
+                                                filter(.metric=="accuracy")
+
+regular_season_totals_all_conf_mat<-regular_season_totals_all_predictions|>
+                                    conf_mat(truth=WL,estimate=.pred_class)
+
+regular_season_totals_all_predictions_accuracy
+regular_season_totals_all_conf_mat
+```
+Using all variables analyzed, an accuracy of approximately 84.57% is achieved.
+
+<br>
+
+### Conclusion
+
+In conclusion, the accuracy from using the top 6 variables as predictors for game outcomes produced relatively good accuracy. When using all variables as predictors, the high accuracy is expected because the model has access to more information about basketball performance when making predictions, leading to more accurate predictions. Compared to the full-variable model, the model with the top 6 variables is approximately 12.49% less accurate, whereas the model using the bottom 6 variables is approximately 25.39% less accurate, nearly double the loss in accuracy relative to the top 6 variable model. As such, the classification model constructed from using the top 6 variables performs well, especially when comparing to the model using the bottom 6 variables. These results may also suggest that the visualization analysis previously done was effective.

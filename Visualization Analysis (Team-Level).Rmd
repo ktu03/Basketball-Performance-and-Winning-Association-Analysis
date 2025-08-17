@@ -1,0 +1,1352 @@
+---
+title: "Basketball Performance and Winning Assocation Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Initial Loading
+
+The data from the main file of wrangled data and required libraries is loaded.
+```{r}
+library("dplyr")
+library("ggplot2")
+library("infer")
+load("wrangled_data.RData")
+```
+
+## Visualization Analysis (Team-Level)
+
+The purpose of this component of the project is to analyze basketball performance variables and determine if they may have associations with winning and team performance in basketball. The results from this component will be applied to the statistical modelling component. Specifically, the top 6 variables interpreted to have the strongest association with wins will be selected as the model predictors in the next element in this project.
+
+### Boxplot, Histogram, Bar Chart, and Confidence Interval Analysis
+
+Boxplots are used to compare the total values of all variables among all teams during the regular season. Since there are 30 teams, to make visualizations more readable, 3 side-by-side boxplots will be used. The y-scales will also be monitored closely, since there will be 3 boxplots with different scales. For each variable explored in the boxplots, a team that performs relatively better in the variable and one that performs relatively worse is selected via observation from the boxplots to observe meaningful differences. There is no specific criterion for the selection process, though teams with more extreme means and lower ranges are more favoured to be chosen. 
+Then, a histogram showing the distribution of the variable from all games played by the team during the regular season is plotted, along with a bar chart summarizing their wins and losses. Play-offs data is not used to create the histograms and bar charts as there are a lot less observations for each team compared to regular season data. It is then compared whether the higher-performing team in the variable has more wins. In the context of higher-performing in this project, it means a greater score, not necessarily whether or not the score is favourable. The purpose of this part is to have a broader glimpse of the relationship between the variable and winning for each of the teams, and whether or not the variable may be essential to winning. If the lower-performing team has more wins than the higher-performing team, then the variable may not have as strong a relationship with winning as other variables. 
+
+Focusing only on games where the higher-performing team beat the lower-performing team, a 95% confidence interval for the true mean difference in the variable between the teams is computed. This is done via bootstrapping 1000 resamples from all games in the sample where that specific winning team beat the specific losing team. Play-offs data is once again not used here due to very limited data. If the interval contains values between -1 and 1, then it is interpreted that winning is not likely to be associated with having higher values in the variable, as it is suggested that both teams have similar overall performance. This is because differences in the basketball performance variables analyzed with magnitudes less than 1 are minimal and do not typically portray the variable as having a meaningful association with winning. However, if the interval contains values greater than 1, it is interpreted that there may be a positive relationship between the variable and winning, as one team does substantially better than the other. Afterwards, a 95% confidence interval for the true mean difference in the variable between the winning and losing teams of all games in each of the regular season and play-offs sample is constructed to potentially solidify the findings from just using the two teams, or to observe pattern deviations. The results from the interval using the regular season sample should be more reliable as the sample size is larger than the play-offs sample, being more representative of the population. Since both sample sizes are much larger than the sample with the two specific teams, their results for the confidence interval are more reliable as there is more precision. The purpose of comparing two teams while also having the ability to use the entire samples of regular season and play-offs games is to further explore the data and identify any outliers or deviations from the overall trends.
+
+```{r}
+#Team names to create boxplots of variables for
+teamNames1<-c("Atlanta Hawks","Boston Celtics","Charlotte Hornets","Chicago Bulls","Cleveland Cavaliers",
+              "Dallas Mavericks","Denver Nuggets","Detroit Pistons","Golden State Warriors",
+              "Houston Rockets")
+teamNames2<-c("Indiana Pacers","Los Angeles Clippers","Los Angeles Lakers","Memphis Grizzlies","Miami Heat",
+              "Milwaukee Bucks","Minnesota Timberwolves","Brooklyn Nets","New Orleans Pelicans",
+              "New York Knicks")
+teamNames3<-c("Oklahoma City Thunder","Orlando Magic","Phoenix Suns","Portland Trail Blazers","Sacramento Kings",
+              "San Antonio Spurs","Toronto Raptors","Washington Wizards","Philadelphia 76ers","Utah Jazz")
+
+#Regular season totals data split between winning games and losing games
+winning_games_regular_season<-regular_season_totals|>filter(WL=="W")
+losing_games_regular_season<-regular_season_totals|>filter(WL=="L")
+
+#Play-offs totals data split between winning games and losing games
+winning_games_play_offs<-play_off_totals|>filter(WL=="W")
+losing_games_play_offs<-play_off_totals|>filter(WL=="L")
+```
+
+#### Field Goals Made
+```{r fig.width=15,fig.height=5}
+regular_season_field_goals_boxplot_1<-regular_season_team_summary_stats|>
+                                             filter(teamName %in% teamNames1)|>
+                                             ggplot() + geom_boxplot(aes(x=teamName,y=totalFieldGoalsMade)) 
+
+regular_season_field_goals_boxplot_2<-regular_season_team_summary_stats|>
+                                             filter(teamName %in% teamNames2)|>
+                                             ggplot() + geom_boxplot(aes(x=teamName,y=totalFieldGoalsMade)) 
+
+regular_season_field_goals_boxplot_3<-regular_season_team_summary_stats|>
+                                             filter(teamName %in% teamNames3)|>
+                                             ggplot() + geom_boxplot(aes(x=teamName,y=totalFieldGoalsMade)) 
+
+regular_season_field_goals_boxplot_1
+regular_season_field_goals_boxplot_2
+regular_season_field_goals_boxplot_3
+```
+
+Based on the boxplots above, San Antonio Spurs appear to have a higher number of field goals made than most teams and Utah Jazz tends to have a lower number of field goals made. To explore the association of field goals made on game outcomes, a histogram of the field goals made and a bar chart of wins and losses are plotted for each team.
+
+<br>
+```{r}
+sas_regular_season_totals<-regular_season_totals|>filter(teamName=="San Antonio Spurs")
+uta_regular_season_totals<-regular_season_totals|>filter(teamName=="Utah Jazz")
+
+sas_field_goals_histogram<-sas_regular_season_totals|>ggplot(aes(x=fieldGoalsMade)) + geom_histogram()
+sas_wl_bar_chart<-sas_regular_season_totals|>ggplot(aes(x=WL)) + geom_bar()
+uta_field_goals_histogram<-uta_regular_season_totals|>ggplot(aes(x=fieldGoalsMade)) + geom_histogram()
+uta_wl_bar_chart<-uta_regular_season_totals|>ggplot(aes(x=WL)) + geom_bar()
+
+sas_field_goals_histogram
+sas_wl_bar_chart
+uta_field_goals_histogram
+uta_wl_bar_chart
+```
+
+The histograms and bar charts above show that the San Antonio Spurs have a higher avergae number of field goals made while also more wins than Utah Jazz. To further investigate the association between field goals and winning, a 95% confidence interval for the true mean difference in field goals made is computed by bootstrap resampling with 1000 iterations from all NBA games during 2010-2024 when San Antonio Spurs beat Utah Jazz.  
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-merge(winning_games_regular_season,losing_games_regular_season,by="gameId")|>
+                                mutate(diffFieldGoals=fieldGoalsMade.x-fieldGoalsMade.y)
+
+combined_games_play_offs<-merge(winning_games_play_offs,losing_games_play_offs,by="gameId")|>
+                          mutate(diffFieldGoals=fieldGoalsMade.x-fieldGoalsMade.y)
+
+sas_uta_games<-filter(combined_games_regular_season,(teamName.x=="San Antonio Spurs" & teamName.y=="Utah Jazz"))
+
+sas_uta_field_goals_bootstrap_distribution<-sas_uta_games|>specify(response=diffFieldGoals)|>
+                                            generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+sas_uta_percentile_confidence_interval<-sas_uta_field_goals_bootstrap_distribution|>
+                                        get_confidence_interval(level=0.95,type="percentile")
+
+sas_uta_field_goals_confidence_interval<-visualize(sas_uta_field_goals_bootstrap_distribution) + 
+                                         shade_confidence_interval(endpoints=sas_uta_percentile_confidence_interval)+
+                                         labs(x="Mean Difference in Field Goals",
+                                             title="Bootstrap Sampling Distribution for Mean Difference in Field Goals for \nSan Antonio Spurs Winning Utah Jazz (n=1000)")
+
+sas_uta_field_goals_confidence_interval
+sas_uta_percentile_confidence_interval
+```
+
+Based on the interval, 95% of samples with 49 games would produce a 95% confidence interval that contains the true mean difference in field goals made between the San Antonio Spurs and Utah Jazz. In other words, there is 95% confidence that the true mean difference in field goals made between the San Antonio Spurs and Utah Jazz lies between approximately 1.73 and 5.35 field goals. Since the entire interval lies above a 1.5 difference in field goals made, this provides further evidence that number of field goals made is strongly associated with winning basketball games. To further investigate this relationship, a 95% confidence interval is constructed for the full sample of NBA games.
+
+<br>
+```{r}
+set.seed(100)
+
+field_goals_regular_season_bootstrap_distribution<-combined_games_regular_season|>
+                                                   specify(response=diffFieldGoals)|>
+                                                   generate(reps=1000,type="bootstrap")|>
+                                                   calculate(stat="mean")
+
+field_goals_regular_season_percentile_confidence_interval<-field_goals_regular_season_bootstrap_distribution|>
+                                                           get_confidence_interval(level=0.95,type="percentile")
+
+field_goals_regular_season_confidence_interval<-visualize(field_goals_regular_season_bootstrap_distribution) +
+                                                shade_confidence_interval(endpoints=field_goals_regular_season_percentile_confidence_interval)+
+                                                labs(x="Mean Difference Field Goals",
+                                                     title="Bootstrap Sampling Distribution for Difference in Mean Field Goals \n(Regular Season, n=1000)")
+
+field_goals_play_offs_bootstrap_distribution<-combined_games_play_offs|>specify(response=diffFieldGoals)|>
+                                              generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+field_goals_play_offs_percentile_confidence_interval<-field_goals_play_offs_bootstrap_distribution|>
+                                                      get_confidence_interval(level=0.95,type="percentile")
+
+field_goals_play_offs_confidence_interval<-visualize(field_goals_play_offs_bootstrap_distribution) +
+                                           shade_confidence_interval(endpoints=field_goals_play_offs_percentile_confidence_interval)+
+                                           labs(x="Mean Difference Field Goals",
+                                                title="Bootstrap Sampling Distribution for Mean Difference in Field Goals \n(Play-offs, n=1000)")
+
+field_goals_regular_season_confidence_interval
+field_goals_regular_season_percentile_confidence_interval
+field_goals_play_offs_confidence_interval
+field_goals_play_offs_percentile_confidence_interval
+```
+
+The results from constructing a 95% confidence interval for the true mean difference in field goals made using the both the regular season and play-offs samples further support the suggestion that field goals made are essential to success in basketball games, as the confidence interval for regular season games ranges from approximately 3.88 to 4.04 field goals. The confidence interval constructed from the play-offs games ranges similar values, but is a little wider. This is expected as the sample size is smaller than the regular season sample. The lower bounds reflect a larger difference in field goals compared to the interval for the San Antonio Spurs and Utah Jazz; both intervals are narrower, indicating more precision. The increased precision is expected, given the larger sample sizes.
+
+<br>
+
+#### Three Pointers
+```{r fig.width=15,fig.height=5}
+regular_season_three_pointers_boxplot_1<-regular_season_team_summary_stats|>
+                                             filter(teamName %in% teamNames1)|>
+                                             ggplot() + geom_boxplot(aes(x=teamName,y=totalThreePointersMade)) 
+
+regular_season_three_pointers_boxplot_2<-regular_season_team_summary_stats|>
+                                             filter(teamName %in% teamNames2)|>
+                                             ggplot() + geom_boxplot(aes(x=teamName,y=totalThreePointersMade)) 
+
+regular_season_three_pointers_boxplot_3<-regular_season_team_summary_stats|>
+                                             filter(teamName %in% teamNames3)|>
+                                             ggplot() + geom_boxplot(aes(x=teamName,y=totalThreePointersMade)) 
+
+regular_season_three_pointers_boxplot_1
+regular_season_three_pointers_boxplot_2
+regular_season_three_pointers_boxplot_3
+```
+
+Though San Antonio Spurs performs strongly in field goals, based on the boxplots, it seems like they do not perform as well in three pointers. On the contrary, Houston Rockets seems to perform better than the other teams in three pointers. 
+
+<br>
+```{r}
+hou_regular_season_totals<-regular_season_totals|>filter(teamName=="Houston Rockets")
+
+hou_three_pointers_histogram<-hou_regular_season_totals|>ggplot(aes(x=threePointersMade))+geom_histogram()
+hou_wl_bar_chart<-hou_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+sas_three_pointers_histogram<-sas_regular_season_totals|>ggplot(aes(x=threePointersMade))+geom_histogram()
+
+hou_three_pointers_histogram
+hou_wl_bar_chart
+sas_three_pointers_histogram
+sas_wl_bar_chart
+```
+
+It is observed above that though Houston Rockets tend to make more three pointers than San Antonio Spurs, they do not have more wins. 
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>
+                               mutate(diffThreePointers=threePointersMade.x-threePointersMade.y)
+combined_games_play_offs<-combined_games_play_offs|>
+                          mutate(diffThreePointers=threePointersMade.x-threePointersMade.y)
+
+sas_hou_games<-filter(combined_games_regular_season,
+                      teamName.x=="Houston Rockets" & teamName.y=="San Antonio Spurs")
+
+sas_hou_field_goals_bootstrap_distribution<-sas_hou_games|>specify(response=diffThreePointers)|>
+                                            generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+sas_hou_percentile_confidence_interval<-sas_hou_field_goals_bootstrap_distribution|>
+                                        get_confidence_interval(level=0.95,type="percentile")
+
+sas_hou_field_goals_confidence_interval<-visualize(sas_hou_field_goals_bootstrap_distribution) +
+                                         shade_confidence_interval(endpoints=sas_hou_percentile_confidence_interval)+
+                                         labs(x="Difference in Three Pointers",
+                                              title="Bootstrap Sampling Distribution for Mean Difference in Three Pointers for \nSan Antonio Spurs Winning Houston Rockets (n=1000)")
+
+sas_hou_field_goals_confidence_interval
+sas_hou_percentile_confidence_interval
+```
+
+Despite Houston Rockets winning less games than San Antonio Spurs, when they beat San Antonio Spurs, they still tend to have more three pointers as the lower bound of the confidence interval is approximately 1.48 three pointers.
+
+<br>
+```{r}
+set.seed(100)
+
+three_pointers_regular_season_bootstrap_distribution<-combined_games_regular_season|>
+                                                      specify(response=diffThreePointers)|>
+                                                      generate(reps=1000,type="bootstrap")|>
+                                                      calculate(stat="mean")
+
+three_pointers_regular_season_percentile_confidence_interval<-three_pointers_regular_season_bootstrap_distribution|>
+                                                              get_confidence_interval(type="percentile",level=0.95)
+
+three_pointers_regular_season_confidence_interval<-visualize(three_pointers_regular_season_bootstrap_distribution) +
+                                                   shade_confidence_interval(endpoints=three_pointers_regular_season_percentile_confidence_interval)+
+                                                   labs(x="Mean Difference in Three Pointers",
+                                                        title="Bootstrap Sampling Distribution for Mean Difference in Three Pointers \n(Regular season, n=1000)")
+
+three_pointers_play_offs_bootstrap_distribution<-combined_games_play_offs|>specify(response=diffThreePointers)|>
+                                                 generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+three_pointers_play_offs_percentile_confidence_interval<-three_pointers_play_offs_bootstrap_distribution|>
+                                                         get_confidence_interval(type="percentile",level=0.95)
+
+three_pointers_play_offs_confidence_interval<-visualize(three_pointers_play_offs_bootstrap_distribution) +
+                                              shade_confidence_interval(endpoints=three_pointers_play_offs_percentile_confidence_interval)+
+                                              labs(x="Mean Difference in Three Pointers",
+                                                   title="Bootstrap Sampling Distribution for Mean Difference in Three Pointers \n(Play-offs, n=1000)")
+
+three_pointers_regular_season_confidence_interval
+three_pointers_regular_season_percentile_confidence_interval
+three_pointers_play_offs_confidence_interval
+three_pointers_play_offs_percentile_confidence_interval
+```
+
+Using the regular season sample, the 95% confidence interval ranges from approximately 1.70 to 1.83 three-pointers. The play-offs sample also constructs an interval ranging similar values, except it is once again a little wider. Comparing these observations to field goals, it is clear that though there is indication that three-pointers are positively associated with winning, it is not as strong as field goals. This finding supports the idea that field goals are more critical than three-pointers in determining game outcomes.
+
+<br>
+
+#### Free Throws
+```{r fig.width=15,fig.height=5}
+regular_season_free_throws_boxplot_1<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames1) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalFreeThrowsMade))
+
+regular_season_free_throws_boxplot_2<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames2) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalFreeThrowsMade))
+
+regular_season_free_throws_boxplot_3<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames3) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalFreeThrowsMade))
+
+regular_season_free_throws_boxplot_1
+regular_season_free_throws_boxplot_2
+regular_season_free_throws_boxplot_3
+```
+
+For free throws made, it seems that Houston Rockets once again performs relatively better than the other teams. Orlando Magic seems to perform relatively worse.
+
+<br>
+```{r}
+orl_regular_season_totals<-regular_season_totals|>filter(teamName=="Orlando Magic")
+
+hou_free_throws_histogram<-hou_regular_season_totals|>ggplot(aes(x=freeThrowsMade))+geom_histogram()
+orl_free_throws_histogram<-orl_regular_season_totals|>ggplot(aes(x=freeThrowsMade))+geom_histogram()
+orl_wl_bar_chart<-orl_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+
+hou_free_throws_histogram
+hou_wl_bar_chart
+orl_free_throws_histogram
+orl_wl_bar_chart
+```
+
+Not only does Orlando Magic make roughly less free throws, but it also loses more games than it wins.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>
+                               mutate(diffFreeThrows=freeThrowsMade.x-freeThrowsMade.y)
+combined_games_play_offs<-combined_games_play_offs|>
+                          mutate(diffFreeThrows=freeThrowsMade.x-freeThrowsMade.y)
+
+hou_orl_games<-combined_games_regular_season|>filter(teamName.x=="Houston Rockets"&teamName.y=="Orlando Magic")
+
+hou_orl_free_throws_bootstrap_distribution<-hou_orl_games|>specify(response=diffFreeThrows)|>
+                                            generate(type="bootstrap",reps=1000)|>calculate(stat="mean")
+
+hou_orl_free_throws_percentile_confidence_interval<-hou_orl_free_throws_bootstrap_distribution|>
+                                                    get_confidence_interval(type="percentile",level=0.95)
+
+hou_orl_free_throws_confidence_interval<-visualize(hou_orl_free_throws_bootstrap_distribution) + 
+                                         shade_confidence_interval(endpoints=hou_orl_free_throws_percentile_confidence_interval)+
+                                         labs(title="Bootstrap Sampling Distribution for Mean Difference in Free Throws for \nHouston Rockets Winning Orlando Magic (n=1000)",
+                                              x="Mean Difference in Free Throws")
+
+hou_orl_free_throws_confidence_interval
+hou_orl_free_throws_percentile_confidence_interval
+```
+Despite the Houston Rockets making more free throws and wins than the Orlando Magic, the 95% confidence interval not only contains values below both 1 and 0. This implies that in a substantial number of games, the Orlando Magic may have made more free throws than the Houston Rockets, and additionally, there is limited confidence that the true mean difference in free throws made is above 0. This suggests that there is a weak relationship between making free throws and winning.
+
+```{r}
+set.seed(100)
+
+free_throws_regular_season_bootstrap_distribution<-combined_games_regular_season|>
+                                                   specify(response=diffFreeThrows)|>
+                                                   generate(reps=1000,type="bootstrap")|>
+                                                   calculate(stat="mean")
+
+free_throws_regular_season_percentile_confidence_interval<-free_throws_regular_season_bootstrap_distribution|>
+                                                           get_confidence_interval(level=0.95,type="percentile")
+
+free_throws_regular_season_confidence_interval<-visualize(free_throws_regular_season_bootstrap_distribution)+
+                                                shade_confidence_interval(endpoints=free_throws_regular_season_percentile_confidence_interval)+
+                                                labs(x="Mean Difference in Free Throws",
+                                                     title="Bootstrap Sampling Distribution for Mean Difference in Free Throws \n(Regular season, n=1000)")
+
+free_throws_play_offs_bootstrap_distribution<-combined_games_play_offs|>
+                                              specify(response=diffFreeThrows)|>
+                                              generate(reps=1000,type="bootstrap")|>
+                                              calculate(stat="mean")
+
+free_throws_play_offs_percentile_confidence_interval<-free_throws_play_offs_bootstrap_distribution|>
+                                                      get_confidence_interval(level=0.95,type="percentile")
+
+free_throws_play_offs_confidence_interval<-visualize(free_throws_play_offs_bootstrap_distribution) +
+                                           shade_confidence_interval(endpoints=free_throws_play_offs_percentile_confidence_interval)+
+                                           labs(x="Mean Difference in Free Throws",
+                                                title="Bootstrap Sampling Distribution for Mean Difference in Free Throws \n(Play-offs, n=1000)")
+
+free_throws_regular_season_confidence_interval
+free_throws_regular_season_percentile_confidence_interval
+free_throws_play_offs_confidence_interval
+free_throws_play_offs_percentile_confidence_interval
+```
+
+The 95% confidence interval from bootstrapping the regular season and play-offs samples are narrower and contain only values above 1, in contrast to bootstrapping only games where the Houston Rockets beat the Orlando Magic. The sample with the Houston Rockets beating the Orlando Magic may be an outlier relative to the entire sample, but more importantly, the sample size was much smaller, with only 17 games, a lot less than the usual recommended sample size of at least 30. With a smaller sample size, the confidence interval is wider as variability increases. The 95% confidence interval for the Houston Rockets vs. Orlando Magic had a range of 6.53, almost twice as wide as other team-to-team comparisons, indicating less precision. Given that the interval contained mostly positive values, it provides stronger evidence in favour of a positive mean difference in free throws made by the Houston Rockets compared to the Orlando Magic. 
+
+<br>
+
+#### Rebounds
+```{r fig.width=15,fig.height=5}
+regular_season_rebounds_boxplot_1<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames1) |>
+                                      ggplot() +
+                                      geom_boxplot(aes(x=teamName,y=totalRebounds))
+
+regular_season_rebounds_boxplot_2<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames2) |>
+                                      ggplot() +
+                                      geom_boxplot(aes(x=teamName,y=totalRebounds))
+
+regular_season_rebounds_boxplot_3<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames3) |>
+                                      ggplot() +
+                                      geom_boxplot(aes(x=teamName,y=totalRebounds))
+
+regular_season_rebounds_boxplot_1
+regular_season_rebounds_boxplot_2
+regular_season_rebounds_boxplot_3
+```
+
+For rebounds, Denver Nuggets was selected as the higher-performing team and Miami Heat as the lower-performing team.
+
+<br>
+```{r}
+den_regular_season_totals<-regular_season_totals|>filter(teamName=="Denver Nuggets")
+mia_regular_season_totals<-regular_season_totals|>filter(teamName=="Miami Heat")
+
+den_rebounds_histogram<-den_regular_season_totals|>ggplot(aes(x=reboundsTotal))+geom_histogram()
+den_wl_bar_chart<-den_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+mia_rebounds_histogram<-mia_regular_season_totals|>ggplot(aes(x=reboundsTotal))+geom_histogram()
+mia_wl_bar_chart<-mia_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+
+den_rebounds_histogram
+den_wl_bar_chart
+mia_rebounds_histogram
+mia_wl_bar_chart
+```
+
+As observed when analysing three pointers made, Denver Nuggets do not have more wins than Miami Heat despite having more rebounds.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>
+                               mutate(diffRebounds=reboundsTotal.x-reboundsTotal.y)
+combined_games_play_offs<-combined_games_play_offs|>
+                          mutate(diffRebounds=reboundsTotal.x-reboundsTotal.y)
+
+den_mia_games<-combined_games_regular_season|>filter(teamName.x=="Denver Nuggets" & teamName.y=="Miami Heat")
+
+den_mia_rebounds_bootstrap_distribution<-den_mia_games|>specify(response=diffRebounds)|>
+                                         generate(type="bootstrap",reps=1000)|>calculate(stat="mean")
+den_mia_rebounds_percentile_confidence_interval<-den_mia_rebounds_bootstrap_distribution|>
+                                                 get_confidence_interval(type="percentile",level=0.95)
+
+den_mia_rebounds_confidence_interval<-visualize(den_mia_rebounds_bootstrap_distribution) +
+                                      shade_confidence_interval(endpoints=den_mia_rebounds_percentile_confidence_interval)+
+                                      labs(x="Mean Difference in Rebounds",
+                                           title="Bootstrap Sampling Distribution for Mean Difference in Rebounds for \nDenver Nuggets Winning Miami Heat (n=1000)")
+
+den_mia_rebounds_confidence_interval
+den_mia_rebounds_percentile_confidence_interval
+```
+
+The confidence interval is once again relatively wide, likely to be due to the limited sample size of only 17 games in which the Denver Nuggets beat the Miami Heat. However, it lies entirely above a mean difference of 1 rebound, which suggests that securing more rebounds is positively associated with winning.
+
+<br>
+```{r}
+set.seed(100)
+
+rebounds_regular_season_bootstrap_distribution<-combined_games_regular_season|>specify(response=diffRebounds)|>
+                                                generate(type="bootstrap",reps=1000)|>
+                                                calculate(stat="mean")
+
+rebounds_regular_season_percentile_confidence_interval<-rebounds_regular_season_bootstrap_distribution|>
+                                                        get_confidence_interval(type="percentile",level=0.95)
+
+rebounds_regular_season_confidence_interval<-visualize(rebounds_regular_season_bootstrap_distribution) +
+                                             shade_confidence_interval(endpoints=rebounds_regular_season_percentile_confidence_interval)+
+                                             labs(title="Bootstrap Sampling Distribution for Mean Difference in Rebounds \n(Regular season, n=1000)",
+                                                  x="Mean Difference in Rebounds")
+
+rebounds_play_offs_bootstrap_distribution<-combined_games_play_offs|>specify(response=diffRebounds)|>
+                                           generate(type="bootstrap",reps=1000)|>calculate(stat="mean")
+
+rebounds_play_offs_percentile_confidence_interval<-rebounds_play_offs_bootstrap_distribution|>
+                                                   get_confidence_interval(type="percentile",level=0.95)
+
+rebounds_play_offs_confidence_interval<-visualize(rebounds_play_offs_bootstrap_distribution) +
+                                        shade_confidence_interval(endpoints=rebounds_play_offs_percentile_confidence_interval)+
+                                        labs(title="Bootstrap Sampling Distribution for Mean Difference in Rebounds \n(Play-offs, n=1000)",
+                                             x="Mean Difference in Rebounds")
+
+rebounds_regular_season_confidence_interval
+rebounds_regular_season_percentile_confidence_interval
+rebounds_play_offs_confidence_interval
+rebounds_play_offs_percentile_confidence_interval
+```
+
+As previously noted, the confidence interval for both samples is narrower due to the large sample sizes. Given that the lower bounds are approximately above a mean difference of 3 rebounds, the data support the conclusion that securing more rebounds is positively associated with winning. As usual, using the play-offs sample results in a wider interval than using the regular season sample as the sample size is smaller, which results in less precision.
+
+<br>
+
+#### Assists
+```{r fig.width=15,fig.height=5}
+regular_season_assists_boxplot_1<-regular_season_team_summary_stats|>
+                                  filter(teamName %in% teamNames1) |>
+                                  ggplot() + geom_boxplot(aes(x=teamName,y=totalAssists))
+
+regular_season_assists_boxplot_2<-regular_season_team_summary_stats|>
+                                  filter(teamName %in% teamNames2) |>
+                                  ggplot() + geom_boxplot(aes(x=teamName,y=totalAssists))
+
+regular_season_assists_boxplot_3<-regular_season_team_summary_stats|>
+                                  filter(teamName %in% teamNames2) |>
+                                  ggplot() + geom_boxplot(aes(x=teamName,y=totalAssists))
+
+regular_season_assists_boxplot_1
+regular_season_assists_boxplot_2
+regular_season_assists_boxplot_3
+```
+
+The Golden State Warriors was selected as the higher-peforming team for assists, while the New York Knicks was selected as the lower-performing team.
+
+<br>
+```{r}
+gsw_regular_season_totals<-regular_season_totals|>filter(teamName=="Golden State Warriors")
+nyk_regular_season_totals<-regular_season_totals|>filter(teamName=="New York Knicks")
+
+gsw_assists_histogram<-gsw_regular_season_totals|>ggplot(aes(x=assists))+geom_histogram()
+gsw_wl_bar_chart<-gsw_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+nyk_assists_histogram<-nyk_regular_season_totals|>ggplot(aes(x=assists))+geom_histogram()
+nyk_wl_bar_chart<-nyk_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+
+gsw_assists_histogram
+gsw_wl_bar_chart
+nyk_assists_histogram
+nyk_wl_bar_chart
+```
+
+There is a clear sharp contrast between the assists each team makes and also the number of games they won. The Golden State Warriors have more assists while having more wins, while the New York Knicks have less assists and less wins.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>mutate(diffAssists=assists.x-assists.y)
+combined_games_play_offs<-combined_games_play_offs|>mutate(diffAssists=assists.x-assists.y)
+
+gsw_nyk_games<-combined_games_regular_season|>filter(teamName.x=="Golden State Warriors" & teamName.y=="New York Knicks")
+
+gsw_nyk_assists_bootstrap_distribution<-gsw_nyk_games|>specify(response=diffAssists)|>
+                                        generate(type="bootstrap",reps=1000)|>calculate(stat="mean")
+
+gsw_nyk_assists_percentile_confidence_interval<-gsw_nyk_assists_bootstrap_distribution|>
+                                                get_confidence_interval(level=0.95,type="percentile")
+
+gsw_nyk_assists_confidence_interval<-visualize(gsw_nyk_assists_bootstrap_distribution) +
+                                     shade_confidence_interval(endpoints=gsw_nyk_assists_percentile_confidence_interval)+
+                                     labs(x="Difference in Assists",
+                                          title="Bootstrap Sampling Distribution for Mean Difference in Assists for \n Golden State Warriors Winning New York Knicks (n=1000)")
+
+gsw_nyk_assists_confidence_interval
+gsw_nyk_assists_percentile_confidence_interval
+```
+
+The confidence interval exhibits the largest difference observed thus far in this project, with a lower bound of approximately 5.89 assists. 
+
+<br>
+```{r}
+set.seed(100)
+
+assists_regular_season_bootstrap_distribution<-combined_games_regular_season|>
+                                               specify(response=diffAssists)|>
+                                               generate(type="bootstrap",reps=1000)|>
+                                               calculate(stat="mean")
+
+assists_regular_season_percentile_confidence_interval<-assists_regular_season_bootstrap_distribution|>
+                                                       get_confidence_interval(level=0.95,type="percentile")
+
+assists_regular_season_confidence_interval<-visualize(assists_regular_season_bootstrap_distribution) +
+                                            shade_confidence_interval(endpoints=assists_regular_season_percentile_confidence_interval)+
+                                            labs(x="Difference in Assists",
+                                                 title="Bootstrap Sampling Distribution for Mean Difference in Assists \n(Regular season, n=1000)")
+
+assists_play_offs_bootstrap_distribution<-combined_games_play_offs|>
+                                          specify(response=diffAssists)|>
+                                          generate(type="bootstrap",reps=1000)|>
+                                          calculate(stat="mean")
+
+assists_play_offs_percentile_confidence_interval<-assists_play_offs_bootstrap_distribution|>
+                                                  get_confidence_interval(level=0.95,type="percentile")
+
+assists_play_offs_confidence_interval<-visualize(assists_play_offs_bootstrap_distribution) +
+                                       shade_confidence_interval(endpoints=assists_play_offs_percentile_confidence_interval)+
+                                       labs(x="Difference in Assists",
+                                            title="Bootstrap Sampling Distribution for Mean Difference in Assists \n(Regular season, n=1000)")
+
+assists_regular_season_confidence_interval
+assists_regular_season_percentile_confidence_interval
+assists_play_offs_confidence_interval
+assists_play_offs_percentile_confidence_interval
+```
+
+The confidence intervals align with the results observed for the mean differences in assists when Golden State Warriors beat New York Knicks, with lower bounds of above approximately 2.5 assists. This again suggests that recording more assists has a positive relationship with winning games.
+
+<br>
+
+#### Steals
+```{r fig.width=15,fig.height=5}
+regular_season_steals_boxplot_1<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames1) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalSteals))
+
+regular_season_steals_boxplot_2<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames2) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalSteals))
+
+regular_season_steals_boxplot_3<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames3) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalSteals))
+
+regular_season_steals_boxplot_1
+regular_season_steals_boxplot_2
+regular_season_steals_boxplot_3
+```
+
+Memphis Grizzlies was selected as the higher-performing team for steals and Portland Trail Blazers was selected as the lower-performing team.
+
+<br>
+```{r}
+mem_regular_season_totals<-regular_season_totals|>filter(teamName=="Memphis Grizzlies")
+por_regular_season_totals<-regular_season_totals|>filter(teamName=="Portland Trail Blazers")
+
+mem_steals_histogram<-mem_regular_season_totals|>ggplot(aes(x=steals))+geom_histogram()
+mem_wl_bar_chart<-mem_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+por_steals_histogram<-por_regular_season_totals|>ggplot(aes(x=steals))+geom_histogram()
+por_wl_bar_chart<-por_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+
+mem_steals_histogram
+mem_wl_bar_chart
+por_steals_histogram
+por_wl_bar_chart
+```
+
+Memphis Grizzlies perform better in steals than Portland Trail Blazers while having more wins. 
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>mutate(diffSteals=steals.x-steals.y)
+combined_games_play_offs<-combined_games_play_offs|>mutate(diffSteals=steals.x-steals.y)
+
+mem_por_games<-combined_games_regular_season|>
+               filter(teamName.x=="Memphis Grizzlies" & teamName.y=="Portland Trail Blazers")
+
+mem_por_steals_bootstrap_distribution<-mem_por_games|>specify(response=diffSteals)|>
+                                       generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+mem_por_steals_percentile_confidence_interval<-mem_por_steals_bootstrap_distribution|>
+                                               get_confidence_interval(level=0.95,type="percentile")
+
+mem_por_steals_confidence_interval<-visualize(mem_por_steals_bootstrap_distribution)+
+                                    shade_confidence_interval(endpoints=mem_por_steals_percentile_confidence_interval)+
+                                    labs(x="Mean Difference in Steals",
+                                         title="Bootstrap Sampling Distrbution for Mean Difference in Steals for \nMemphis Grizzlies Winning Portland Trail Blazers (n=1000)")
+
+mem_por_steals_confidence_interval
+mem_por_steals_percentile_confidence_interval
+```
+
+The confidence interval ranges from relatively lower mean difference values, with a lower bound of 0.32 and an upper bound of 2.76. The sample size was also 25, yielding an interval a little more precise than previous intervals where the sample size was smaller.
+
+<br>
+```{r}
+set.seed(100)
+
+steals_regular_season_bootstrap_distribution<-combined_games_regular_season|>specify(response=diffSteals)|>
+                                              generate(reps=1000,type="bootstrap")|>
+                                              calculate(stat="mean")
+
+steals_regular_season_percentile_confidence_interval<-steals_regular_season_bootstrap_distribution|>
+                                                      get_confidence_interval(level=0.95,type="percentile")
+
+steals_regular_season_confidence_interval<-visualize(steals_regular_season_bootstrap_distribution) +
+                                           shade_confidence_interval(endpoints=steals_regular_season_percentile_confidence_interval)+
+                                           labs(x="Mean Difference in Steals",
+                                                title="Bootstrap Sampling Distribution for Mean Difference in Steals \n(Regular season, n=1000)")
+
+steals_play_offs_bootstrap_distribution<-combined_games_play_offs|>specify(response=diffSteals)|>
+                                         generate(reps=1000,type="bootstrap")|>
+                                         calculate(stat="mean")
+
+steals_play_offs_percentile_confidence_interval<-steals_play_offs_bootstrap_distribution|>
+                                                 get_confidence_interval(level=0.95,type="percentile")
+
+steals_play_offs_confidence_interval<-visualize(steals_play_offs_bootstrap_distribution) +
+                                      shade_confidence_interval(endpoints=steals_play_offs_percentile_confidence_interval)+
+                                      labs(x="Mean Difference in Steals",
+                                           title="Bootstrap Sampling Distribution for Mean Difference in Steals \n(Play-offs, n=1000)")
+
+steals_regular_season_confidence_interval
+steals_regular_season_percentile_confidence_interval
+steals_play_offs_confidence_interval
+steals_play_offs_percentile_confidence_interval
+```
+
+Because both 95% confidence intervals tends to range values below 1, it is 95% confident that the true mean difference in steals between winning teams and losing teams is minimal. This aligns well with the results when observing instances where the Memphis Grizzlies beat the Portland Trail Blazers. Although the play-offs sample resulted in a 95% confidence interval with an upper bound of approximately 1.13 steals, most of the values in the interval are still below 1. Additionally, it is less precise than the confidnece interval constructed from using the regular season sample. 
+
+<br>
+
+#### Blocks
+```{r fig.width=15,fig.height=5}
+regular_season_blocks_boxplot_1<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames1) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalBlocks))
+
+regular_season_blocks_boxplot_2<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames2) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalBlocks))
+
+regular_season_blocks_boxplot_3<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames3) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalBlocks))
+
+regular_season_blocks_boxplot_1
+regular_season_blocks_boxplot_2
+regular_season_blocks_boxplot_3
+```
+For blocks, Oklahoma City Thunder was selected as the higher-performing team and Cleveland Cavaliers was selected as the lower performing team.
+
+<br>
+```{r}
+okc_regular_season_totals<-regular_season_totals|>filter(teamName=="Oklahoma City Thunder")
+cle_regular_season_totals<-regular_season_totals|>filter(teamName=="Cleveland Cavaliers")
+
+okc_blocks_histogram<-okc_regular_season_totals|>ggplot(aes(x=blocks))+geom_histogram()
+okc_wl_bar_chart<-okc_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+cle_blocks_histogram<-cle_regular_season_totals|>ggplot(aes(x=blocks))+geom_histogram()
+cle_wl_bar_chart<-cle_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+
+okc_blocks_histogram
+okc_wl_bar_chart
+cle_blocks_histogram
+cle_wl_bar_chart
+```
+
+The results produce a staunch difference between the two teams once again. Oklahoma City Thunder tends to have more blocks while winning more than Cleveland Cavaliers.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>mutate(diffBlocks=blocks.x-blocks.y)
+combined_games_play_offs<-combined_games_play_offs|>mutate(diffBlocks=blocks.x-blocks.y)
+
+okc_cle_games<-combined_games_regular_season|>
+               filter(teamName.x=="Oklahoma City Thunder" & teamName.y=="Cleveland Cavaliers")
+
+okc_cle_blocks_bootstrap_distribution<-okc_cle_games|>specify(response=diffBlocks)|>
+                                       generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+okc_cle_blocks_percentile_confidence_interval<-okc_cle_blocks_bootstrap_distribution|>
+                                               get_confidence_interval(level=0.95,type="percentile")
+
+okc_cle_blocks_confidence_interval<-visualize(okc_cle_blocks_bootstrap_distribution) +
+                                    shade_confidence_interval(endpoints=okc_cle_blocks_percentile_confidence_interval)+
+                                    labs(x="Mean Difference in Blocks",
+                                         title="Bootstrap Sampling Distribution for Mean Difference in Blocks for \nOklahoma City Thunder Winning Cleveland Cavaliers (n=1000)")
+
+okc_cle_blocks_confidence_interval
+okc_cle_blocks_percentile_confidence_interval
+```
+
+The confidence interval has a lower bound of approximately 1.73 blocks, which may suggest a positive influence on winning. However, as expected, just like assists and steals, it does not seem to have as much of influence as field goals.
+
+<br>
+```{r}
+set.seed(100)
+
+blocks_regular_season_bootstrap_distribution<-combined_games_regular_season|>specify(response=diffBlocks)|>
+                                              generate(reps=1000,type="bootstrap")|>
+                                              calculate(stat="mean")
+
+blocks_regular_season_percentile_confidence_interval<-blocks_regular_season_bootstrap_distribution|>
+                                                      get_confidence_interval(level=0.95,type="percentile")
+
+blocks_regular_season_confidence_interval<-visualize(blocks_regular_season_bootstrap_distribution) +
+                                           shade_confidence_interval(endpoints=blocks_regular_season_percentile_confidence_interval)+
+                                           labs(x="Mean Difference in Blocks",
+                                                title="Bootstrap Sampling Distribution for Mean Difference in Blocks \n(Regular season, n=1000)")
+
+blocks_play_offs_bootstrap_distribution<-combined_games_play_offs|>specify(response=diffBlocks)|>
+                                         generate(reps=1000,type="bootstrap")|>
+                                         calculate(stat="mean")
+
+blocks_play_offs_percentile_confidence_interval<-blocks_play_offs_bootstrap_distribution|>
+                                                 get_confidence_interval(level=0.95,type="percentile")
+
+blocks_play_offs_confidence_interval<-visualize(blocks_play_offs_bootstrap_distribution) +
+                                      shade_confidence_interval(endpoints=blocks_play_offs_percentile_confidence_interval)+
+                                      labs(x="Mean Difference in Blocks",
+                                           title="Bootstrap Sampling Distribution for Mean Difference in Blocks \n(Play-offs, n=1000)")
+
+blocks_regular_season_confidence_interval
+blocks_regular_season_percentile_confidence_interval
+blocks_play_offs_confidence_interval     
+blocks_play_offs_percentile_confidence_interval
+```
+
+Although the 95% confidence interval for games in which Oklahoma City Thunder Winning Cleveland Cavaliers ranges above a 1.73 mean difference in blocks, the confidence intervals based on the regular season and play-offs samples do not indicate any meaningful difference. Since both samples are more representative of the population of interest and produce a more precise interval, it is more accurate to conclude that blocks are weakly associated with winning. 
+
+<br>
+#### Fouls
+```{r fig.width=15,fig.height=5}
+regular_season_fouls_boxplot_1<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames1) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalFouls))
+
+regular_season_fouls_boxplot_2<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames2) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalFouls))
+
+regular_season_fouls_boxplot_3<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames3) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalFouls))
+
+regular_season_fouls_boxplot_1
+regular_season_fouls_boxplot_2
+regular_season_fouls_boxplot_3
+```
+For fouls, Phoenix Suns was selected as the higher-performing team and San Antonio Spurs was selected as the lower-performing team
+
+<br>
+```{r}
+phx_regular_season_totals<-regular_season_totals|>filter(teamName=="Phoenix Suns")
+
+phx_fouls_histogram<-phx_regular_season_totals|>ggplot(aes(x=foulsPersonal))+geom_histogram()
+phx_wl_bar_chart<-phx_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+sas_fouls_histogram<-sas_regular_season_totals|>ggplot(aes(x=foulsPersonal))+geom_histogram()
+
+phx_fouls_histogram
+phx_wl_bar_chart
+sas_fouls_histogram
+sas_wl_bar_chart
+```
+The Phoenix Suns tend to have more fouls while having fewer wins, and the San Antonio Spurs tend to have fewer fouls with more wins. Unlike the other variables examined, it is important to note that in basketball, fouls are negative metrics of a team or player, so having fewer fouls is considered favourable. Therefore, for the next comparison, games where the San Antonio Spurs beat the Phoenix Suns will be focused on.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>mutate(diffFouls=foulsPersonal.x-foulsPersonal.y)
+combined_games_play_offs<-combined_games_play_offs|>mutate(diffFouls=foulsPersonal.x-foulsPersonal.y)
+
+phx_sas_games<-combined_games_regular_season|>
+               filter(teamName.x=="San Antonio Spurs" & teamName.y=="Phoenix Suns")
+
+phx_sas_blocks_bootstrap_distribution<-phx_sas_games|>specify(response=diffFouls)|>
+                                       generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+phx_sas_blocks_percentile_confidence_interval<-phx_sas_blocks_bootstrap_distribution|>
+                                               get_confidence_interval(level=0.95,type="percentile")
+
+phx_sas_blocks_confidence_interval<-visualize(phx_sas_blocks_bootstrap_distribution) +
+                                    shade_confidence_interval(endpoints=phx_sas_blocks_percentile_confidence_interval)+
+                                    labs(x="Mean Difference in Fouls",
+                                         title="Bootstrap Sampling Distribution for Mean Difference in Fouls for \nPhoenix Suns Winning San Antonio Spurs (n=1000)")
+
+phx_sas_blocks_confidence_interval
+phx_sas_blocks_percentile_confidence_interval
+```
+It is observed that the confidence interval includes negative values, indicating that, on average, the San Antonio Spurs commit fewer fouls than the Phoenix Suns. As previously noted, committing fewer fouls is a positive metric in basketball, suggesting that having fewer fouls is positively associated with winning.
+
+<br>
+```{r}
+set.seed(100)
+
+fouls_regular_season_bootstrap_distribution<-combined_games_regular_season|>specify(response=diffFouls)|>
+                                             generate(reps=1000,type="bootstrap")|>
+                                             calculate(stat="mean")
+
+fouls_regular_season_percentile_confidence_interval<-fouls_regular_season_bootstrap_distribution|>
+                                                     get_confidence_interval(level=0.95,type="percentile")
+
+fouls_regular_season_confidence_interval<-visualize(fouls_regular_season_bootstrap_distribution) +
+                                          shade_confidence_interval(endpoints=fouls_regular_season_percentile_confidence_interval)+
+                                          labs(x="Mean Difference in Fouls",
+                                               title="Bootstrap Sampling Distribution for Mean Difference in Fouls \n(Regular season, n=1000)")
+
+fouls_play_offs_bootstrap_distribution<-combined_games_play_offs|>specify(response=diffFouls)|>
+                                        generate(reps=1000,type="bootstrap")|>
+                                        calculate(stat="mean")
+
+fouls_play_offs_percentile_confidence_interval<-fouls_play_offs_bootstrap_distribution|>
+                                                get_confidence_interval(level=0.95,type="percentile")
+
+fouls_play_offs_confidence_interval<-visualize(fouls_play_offs_bootstrap_distribution) +
+                                     shade_confidence_interval(endpoints=fouls_play_offs_percentile_confidence_interval)+
+                                     labs(x="Mean Difference in Fouls",
+                                          title="Bootstrap Sampling Distribution for Mean Difference in Fouls \n(Play-offs, n=1000)")
+
+fouls_regular_season_confidence_interval
+fouls_regular_season_percentile_confidence_interval
+fouls_play_offs_confidence_interval     
+fouls_play_offs_percentile_confidence_interval
+```
+
+Although games in which the San Antonio Spurs beat the Phoenix Suns portray a meaningful relationship with wins and fewer fouls, the 95% confidence intervals constructed above contains mostly values with magnitude less than 1. This phenomenon suggests that overall, even though fewer fouls are considered a positive attribute in basketball, it has a less meaningful relationship with winning.
+
+<br>
+
+#### Turnovers
+```{r fig.width=15,fig.height=5}
+regular_season_turnovers_boxplot_1<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames1) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalTurnovers))
+
+regular_season_turnovers_boxplot_2<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames2) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalTurnovers))
+
+regular_season_turnovers_boxplot_3<-regular_season_team_summary_stats|>
+                                      filter(teamName %in% teamNames3) |>
+                                      ggplot() + geom_boxplot(aes(x=teamName,y=totalTurnovers))
+
+regular_season_turnovers_boxplot_1
+regular_season_turnovers_boxplot_2
+regular_season_turnovers_boxplot_3
+```
+
+For turnovers, Golden State Warriors was selected as the higher-performing team while Dallas Mavericks was selected as the lower-performing team. As with fouls, turnovers is also considered a negative metric in basketball. Therefore, having fewer turnovers is considered a positive attribute in basketball.
+
+<br>
+```{r}
+dal_regular_season_totals<-regular_season_totals|>filter(teamName=="Dallas Mavericks")
+
+dal_turnovers_histogram<-dal_regular_season_totals|>ggplot(aes(x=turnovers))+geom_histogram()
+dal_wl_bar_chart<-dal_regular_season_totals|>ggplot(aes(x=WL))+geom_bar()
+gsw_turnovers_histogram<-gsw_regular_season_totals|>ggplot(aes(x=turnovers))+geom_histogram()
+
+gsw_turnovers_histogram
+gsw_wl_bar_chart
+dal_turnovers_histogram
+dal_wl_bar_chart
+```
+
+Despite having more turnovers, the Golden State Warriors won more games than the Dallas Mavericks. Same with fouls, the confidence interval analysis will be focused on the mean difference in turnovers when the Dallas Mavericks beat the Golden State Warriors, as the relationship of having favourable values of turnovers with winning is being analyzed.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>mutate(diffTurnovers=turnovers.x-turnovers.y)
+combined_games_play_offs<-combined_games_play_offs|>mutate(diffTurnovers=turnovers.x-turnovers.y)
+
+gsw_dal_games<-combined_games_regular_season|>
+               filter(teamName.x=="Dallas Mavericks" & teamName.y=="Golden State Warriors")
+
+gsw_dal_blocks_bootstrap_distribution<-gsw_dal_games|>specify(response=diffTurnovers)|>
+                                       generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+gsw_dal_blocks_percentile_confidence_interval<-gsw_dal_blocks_bootstrap_distribution|>
+                                               get_confidence_interval(level=0.95,type="percentile")
+
+gsw_dal_blocks_confidence_interval<-visualize(gsw_dal_blocks_bootstrap_distribution) +
+                                    shade_confidence_interval(endpoints=gsw_dal_blocks_percentile_confidence_interval)+
+                                    labs(x="Mean Difference in Turnovers",
+                                         title="Bootstrap Sampling Distribution for Mean Difference in Turnovers for \nDallas Mavericks Winning Golden State Warriors (n=1000)")
+
+gsw_dal_blocks_confidence_interval
+gsw_dal_blocks_percentile_confidence_interval
+```
+
+The 95% confidence interval includes mostly negative values and has an upper bound close to 0. As such, the data may suggest that having fewer turnovers is associated with winning.
+
+<br>
+```{r}
+set.seed(100)
+
+turnovers_regular_season_bootstrap_distribution<-combined_games_regular_season|>specify(response=diffTurnovers)|>
+                                                 generate(reps=1000,type="bootstrap")|>
+                                                 calculate(stat="mean")
+
+turnovers_regular_season_percentile_confidence_interval<-turnovers_regular_season_bootstrap_distribution|>
+                                                         get_confidence_interval(level=0.95,type="percentile")
+
+turnovers_regular_season_confidence_interval<-visualize(turnovers_regular_season_bootstrap_distribution) +
+                                              shade_confidence_interval(endpoints=turnovers_regular_season_percentile_confidence_interval)+
+                                              labs(x="Mean Difference in Turnovers",
+                                                   title="Bootstrap Sampling Distribution for Mean Difference in Turnovers \n(Regular Season, n=1000)")
+
+turnovers_play_offs_bootstrap_distribution<-combined_games_play_offs|>specify(response=diffTurnovers)|>
+                                            generate(reps=1000,type="bootstrap")|>
+                                            calculate(stat="mean")
+
+turnovers_play_offs_percentile_confidence_interval<-turnovers_play_offs_bootstrap_distribution|>
+                                                    get_confidence_interval(level=0.95,type="percentile")
+
+turnovers_play_offs_confidence_interval<-visualize(turnovers_play_offs_bootstrap_distribution) +
+                                         shade_confidence_interval(endpoints=turnovers_play_offs_percentile_confidence_interval)+
+                                         labs(x="Mean Difference in Turnovers",
+                                              title="Bootstrap Sampling Distribution for Mean Difference in Turnovers \n(Play-Offs, n=1000)")
+
+turnovers_regular_season_confidence_interval     
+turnovers_regular_season_percentile_confidence_interval
+turnovers_play_offs_confidence_interval
+turnovers_play_offs_percentile_confidence_interval
+```
+
+Though the 95% confidence intervals range negative values, the magnitudes are mostly below 1, thus showing minimal association between committing fewer turnovers and winning. As the entire sample is larger and produces a more precise interval, the results here are more reliable.
+
+<br>
+
+#### Field Goal Attempts
+```{r fig.width=15,fig.height=5}
+regular_season_field_goal_attempts_boxplot_1<-regular_season_team_summary_stats|>
+                                              filter(teamName %in% teamNames1) |>
+                                              ggplot() + geom_boxplot(aes(x=teamName,y=totalFieldGoalsAttempted))
+
+regular_season_field_goal_attempts_boxplot_2<-regular_season_team_summary_stats|>
+                                              filter(teamName %in% teamNames2) |>
+                                              ggplot() + geom_boxplot(aes(x=teamName,y=totalFieldGoalsAttempted))
+
+regular_season_field_goal_attempts_boxplot_3<-regular_season_team_summary_stats|>
+                                              filter(teamName %in% teamNames3) |>
+                                              ggplot() + geom_boxplot(aes(x=teamName,y=totalFieldGoalsAttempted))
+
+regular_season_field_goal_attempts_boxplot_1
+regular_season_field_goal_attempts_boxplot_2
+regular_season_field_goal_attempts_boxplot_3
+```
+
+For field goal attempts, the Golden State Warriors was selected as the higher-performing team and the Miami Heat was selected as the lower-performing team.
+
+<br>
+```{r}
+gsw_field_goal_attempts_histogram<-gsw_regular_season_totals|>ggplot(aes(x=fieldGoalsAttempted))+geom_histogram()
+mia_field_goal_attempts_histogram<-mia_regular_season_totals|>ggplot(aes(x=fieldGoalsAttempted))+geom_histogram()
+
+gsw_field_goal_attempts_histogram
+gsw_wl_bar_chart
+mia_field_goal_attempts_histogram
+mia_wl_bar_chart
+```
+
+Despite the Golden State Warriors typically having more field goal attempts than the Miami Heat, they have a similar number of wins to Miami Heat.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>
+                               mutate(diffFieldGoalAttempts=fieldGoalsAttempted.x-fieldGoalsAttempted.y)
+combined_games_play_offs<-combined_games_play_offs|>
+                          mutate(diffFieldGoalAttempts=fieldGoalsAttempted.x-fieldGoalsAttempted.y)
+
+gsw_mia_games<-combined_games_regular_season|>
+               filter(teamName.x=="Golden State Warriors" & teamName.y=="Miami Heat")
+
+gsw_mia_field_goal_attempts_bootstrap_distribution<-gsw_mia_games|>specify(response=diffFieldGoalAttempts)|>
+                                                    generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+gsw_mia_field_goal_attempts_percentile_confidence_interval<-gsw_mia_field_goal_attempts_bootstrap_distribution|>
+                                                            get_confidence_interval(level=0.95,type="percentile")
+
+gsw_mia_field_goal_attempts_confidence_interval<-visualize(gsw_mia_field_goal_attempts_bootstrap_distribution) +
+                                                 shade_confidence_interval(endpoints=gsw_mia_field_goal_attempts_percentile_confidence_interval)+
+                                                 labs(x="Mean Difference in Field Goal Attempts",
+                                                      title="Bootstrap Sampling Distribution for Mean Difference in Field Goal Attempts for \nGolden State Warriors Winning Miami Heat (n=1000)")
+
+gsw_mia_field_goal_attempts_confidence_interval
+gsw_mia_field_goal_attempts_percentile_confidence_interval
+```
+
+The 95% confidence interval has a wide range, indicating less precision. As it ranges between negative and positive values while also containing all values with magnitude less than 1, it may be the case that attempting field goals has minimal association with winning.
+
+<br>
+```{r}
+set.seed(100)
+
+field_goal_attempts_regular_season_bootstrap_distribution<-combined_games_regular_season|>
+                                                           specify(response=diffFieldGoalAttempts)|>
+                                                           generate(reps=1000,type="bootstrap")|>
+                                                           calculate(stat="mean")
+
+field_goal_attempts_regular_season_percentile_confidence_interval<-field_goal_attempts_regular_season_bootstrap_distribution|>
+                                                                   get_confidence_interval(level=0.95,type="percentile")
+
+field_goal_attempts_regular_season_confidence_interval<-visualize(field_goal_attempts_regular_season_bootstrap_distribution) +
+                                                        shade_confidence_interval(endpoints=field_goal_attempts_regular_season_percentile_confidence_interval)+
+                                                        labs(x="Mean Difference in Field Goal Attempts",
+                                                             title="Bootstrap Sampling Distribution for Mean Difference in Field Goal Attempts \n(Regular Season, n=1000)")
+
+field_goal_attempts_play_offs_bootstrap_distribution<-combined_games_play_offs|>
+                                                      specify(response=diffFieldGoalAttempts)|>
+                                                      generate(reps=1000,type="bootstrap")|>
+                                                      calculate(stat="mean")
+
+field_goal_attempts_play_offs_percentile_confidence_interval<-field_goal_attempts_play_offs_bootstrap_distribution|>
+                                                              get_confidence_interval(level=0.95,type="percentile")
+
+field_goal_attempts_play_offs_confidence_interval<-visualize(field_goal_attempts_play_offs_bootstrap_distribution)+
+                                                   shade_confidence_interval(endpoints=field_goal_attempts_play_offs_percentile_confidence_interval)+
+                                                   labs(x="Mean Difference in Field Goal Attempts",
+                                                        title="Bootstrap Sampling Distribution for Mean Difference in Field Goal Attempts \n(Play-offs, n=1000)")
+
+field_goal_attempts_regular_season_confidence_interval     
+field_goal_attempts_regular_season_percentile_confidence_interval
+field_goal_attempts_play_offs_confidence_interval
+field_goal_attempts_play_offs_percentile_confidence_interval
+```
+
+As previously predicted, using the regular season and play-offs samples suggest that there may be minimal association between attempting more field goals and winning games.
+
+<br>
+
+#### Three Pointer Attempts
+```{r fig.width=15,fig.height=5}
+regular_season_three_pointer_attempts_boxplot_1<-regular_season_team_summary_stats|>
+                                                 filter(teamName %in% teamNames1) |>
+                                                 ggplot() + 
+                                                 geom_boxplot(aes(x=teamName,y=totalThreePointersAttempted))
+
+regular_season_three_pointer_attempts_boxplot_2<-regular_season_team_summary_stats|>
+                                                 filter(teamName %in% teamNames2) |>
+                                                 ggplot() + 
+                                                 geom_boxplot(aes(x=teamName,y=totalThreePointersAttempted))
+
+regular_season_three_pointer_attempts_boxplot_3<-regular_season_team_summary_stats|>
+                                                 filter(teamName %in% teamNames3) |>
+                                                 ggplot() + 
+                                                 geom_boxplot(aes(x=teamName,y=totalThreePointersAttempted))
+
+regular_season_three_pointer_attempts_boxplot_1
+regular_season_three_pointer_attempts_boxplot_2
+regular_season_three_pointer_attempts_boxplot_3
+```
+
+For three pointer attempts, Houston Rockets was selected as the higher-performing team while San Antonio Spurs was selected as the lower-performing team.
+
+<br>
+```{r}
+hou_three_pointer_attempts_histogram<-hou_regular_season_totals|>ggplot(aes(x=threePointersAttempted))+
+                                      geom_histogram()
+sas_three_pointer_attempts_histogram<-sas_regular_season_totals|>ggplot(aes(x=threePointersAttempted))+
+                                      geom_histogram()
+
+hou_three_pointer_attempts_histogram
+hou_wl_bar_chart
+sas_three_pointer_attempts_histogram
+sas_wl_bar_chart
+```
+
+San Antonio Spurs have more wins than Houston Rockets even though they tend to have less three pointer attempts.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>
+                               mutate(diffThreePointerAttempts=threePointersAttempted.x-threePointersAttempted.y)
+combined_games_play_offs<-combined_games_play_offs|>
+                          mutate(diffThreePointerAttempts=threePointersAttempted.x-threePointersAttempted.y)
+
+hou_sas_games<-combined_games_regular_season|>
+               filter(teamName.x=="Houston Rockets" & teamName.y=="San Antonio Spurs")
+
+hou_sas_three_pointer_attempts_bootstrap_distribution<-hou_sas_games|>
+                                                       specify(response=diffThreePointerAttempts)|>
+                                                       generate(reps=1000,type="bootstrap")|>
+                                                       calculate(stat="mean")
+
+hou_sas_three_pointer_attempts_percentile_confidence_interval<-hou_sas_three_pointer_attempts_bootstrap_distribution|>
+                                                               get_confidence_interval(level=0.95,type="percentile")
+
+hou_sas_three_pointer_attempts_confidence_interval<-visualize(hou_sas_three_pointer_attempts_bootstrap_distribution) +
+                                                    shade_confidence_interval(endpoints=hou_sas_three_pointer_attempts_percentile_confidence_interval)+
+                                                    labs(x="Mean Difference in Three Pointer Attempts",
+                                                         title="Bootstrap Sampling Distribution for Mean Difference in Three Pointer Attempts for \nHouston Rockets Winning San Antonio Spurs (n=1000)")
+
+hou_sas_three_pointer_attempts_confidence_interval
+hou_sas_three_pointer_attempts_percentile_confidence_interval
+```
+
+Unlike attempting field goals, the interval suggests a potential association between attempting more three-pointers and winning. However, as usual, the results by comparing only games with two specific teams could deviate from the entire sample of games. Additionally, the interval is relatively wide, thus having less precision.
+
+<br>
+```{r}
+set.seed(100)
+
+three_pointer_attempts_regular_season_bootstrap_distribution<-combined_games_regular_season|>
+                                                              specify(response=diffThreePointerAttempts)|>
+                                                              generate(reps=1000,type="bootstrap")|>
+                                                              calculate(stat="mean")
+
+three_pointer_attempts_regular_season_percentile_confidence_interval<-three_pointer_attempts_regular_season_bootstrap_distribution|>
+                                                                      get_confidence_interval(level=0.95,type="percentile")
+
+three_pointer_attempts_regular_season_confidence_interval<-visualize(three_pointer_attempts_regular_season_bootstrap_distribution) +
+                                                           shade_confidence_interval(endpoints=three_pointer_attempts_regular_season_percentile_confidence_interval)+
+                                                           labs(x="Mean Difference in Three Pointer Attempts",
+                                                                title="Bootstrap Sampling Distribution for Mean Difference in Three Pointer Attempts \n(Regular Season, n=1000)")
+
+three_pointer_attempts_play_offs_bootstrap_distribution<-combined_games_play_offs|>
+                                                         specify(response=diffThreePointerAttempts)|>
+                                                         generate(reps=1000,type="bootstrap")|>
+                                                         calculate(stat="mean")
+
+three_pointer_attempts_play_offs_percentile_confidence_interval<-three_pointer_attempts_play_offs_bootstrap_distribution|>
+                                                                 get_confidence_interval(level=0.95,type="percentile")
+
+three_pointer_attempts_play_offs_confidence_interval<-visualize(three_pointer_attempts_play_offs_bootstrap_distribution) +
+                                                      shade_confidence_interval(endpoints=three_pointer_attempts_play_offs_percentile_confidence_interval)+
+                                                      labs(x="Mean Difference in Three Pointer Attempts",
+                                                           title="Bootstrap Sampling Distribution for Mean Difference in Three Pointer Attempts \n(Play-offs, n=1000)")
+
+three_pointer_attempts_regular_season_confidence_interval     
+three_pointer_attempts_regular_season_percentile_confidence_interval
+three_pointer_attempts_play_offs_confidence_interval
+three_pointer_attempts_play_offs_percentile_confidence_interval
+```
+
+As suggested, the previous analysis with Houston Rockets Winning Miami Heat deviates from the results using the regular season and play-offs samples of games. The results here suggest that there is weak relationship between winning games and attempting more three-pointers.
+
+<br>
+
+#### Free Throw Attempts
+```{r fig.width=15,fig.height=5}
+regular_season_free_throw_attempts_boxplot_1<-regular_season_team_summary_stats|>
+                                              filter(teamName %in% teamNames1) |>
+                                              ggplot() + geom_boxplot(aes(x=teamName,y=totalFreeThrowsAttempted))
+
+regular_season_free_throw_attempts_boxplot_2<-regular_season_team_summary_stats|>
+                                              filter(teamName %in% teamNames2) |>
+                                              ggplot() + geom_boxplot(aes(x=teamName,y=totalFreeThrowsAttempted))
+
+regular_season_free_throw_attempts_boxplot_3<-regular_season_team_summary_stats|>
+                                              filter(teamName %in% teamNames3) |>
+                                              ggplot() + geom_boxplot(aes(x=teamName,y=totalFreeThrowsAttempted))
+
+regular_season_free_throw_attempts_boxplot_1
+regular_season_free_throw_attempts_boxplot_2
+regular_season_free_throw_attempts_boxplot_3
+```
+
+For free throw attempts, Houston Rockets was selected as the higher-performing team while Orlando Magic was selected as the lower-performing team.
+
+<br>
+```{r}
+hou_free_throw_attempts_histogram<-hou_regular_season_totals|>ggplot(aes(x=freeThrowsAttempted))+geom_histogram()
+orl_free_throw_attempts_histogram<-orl_regular_season_totals|>ggplot(aes(x=freeThrowsAttempted))+geom_histogram()
+
+hou_free_throw_attempts_histogram
+hou_wl_bar_chart
+orl_free_throw_attempts_histogram
+orl_wl_bar_chart
+```
+
+Orlando Magic has less wins while also tending to have less free throw attempts.
+
+<br>
+```{r}
+set.seed(100)
+
+combined_games_regular_season<-combined_games_regular_season|>
+                               mutate(diffFreeThrowAttempts=freeThrowsAttempted.x-freeThrowsAttempted.y)
+combined_games_play_offs<-combined_games_play_offs|>
+                          mutate(diffFreeThrowAttempts=freeThrowsAttempted.x-freeThrowsAttempted.y)
+
+hou_orl_games<-hou_orl_games|>mutate(diffFreeThrowAttempts=freeThrowsAttempted.x-freeThrowsAttempted.y)
+
+hou_orl_free_throw_attempts_bootstrap_distribution<-hou_orl_games|> specify(response=diffFreeThrowAttempts)|>
+                                                    generate(reps=1000,type="bootstrap")|>calculate(stat="mean")
+
+hou_orl_free_throw_attempts_percentile_confidence_interval<-hou_orl_free_throw_attempts_bootstrap_distribution|>
+                                                            get_confidence_interval(level=0.95,type="percentile")
+
+hou_orl_free_throw_attempts_confidence_interval<-visualize(hou_orl_free_throw_attempts_bootstrap_distribution) +
+                                                 shade_confidence_interval(endpoints=hou_orl_free_throw_attempts_percentile_confidence_interval)+
+                                                 labs(x="Mean Difference in Free Throw Attempts",
+                                                      title="Bootstrap Sampling Distribution for Mean Difference in Free Throw Attempts for \nHouston Rockets Winning Orlando Magic (n=1000)")
+
+hou_orl_free_throw_attempts_confidence_interval
+hou_orl_free_throw_attempts_percentile_confidence_interval
+```
+
+Just as the previous team comparison, the interval is wide thus leading to less precision. 
+
+<br>
+```{r}
+set.seed(100)
+
+free_throw_attempts_regular_season_bootstrap_distribution<-combined_games_regular_season|>
+                                                           specify(response=diffFreeThrowAttempts)|>
+                                                           generate(reps=1000,type="bootstrap")|>
+                                                           calculate(stat="mean")
+
+free_throw_attempts_regular_season_percentile_confidence_interval<-free_throw_attempts_regular_season_bootstrap_distribution|>
+                                                                   get_confidence_interval(level=0.95,type="percentile")
+
+free_throw_attempts_regular_season_confidence_interval<-visualize(free_throw_attempts_regular_season_bootstrap_distribution) +
+                                                        shade_confidence_interval(endpoints=free_throw_attempts_regular_season_percentile_confidence_interval)+
+                                                        labs(x="Mean Difference in Free Throw Attempts",
+                                                             title="Bootstrap Sampling Distribution for Mean Difference in Free Throw Attempts \n(Regular Season, n=1000)")
+
+free_throw_attempts_play_offs_bootstrap_distribution<-combined_games_play_offs|>
+                                                      specify(response=diffFreeThrowAttempts)|>
+                                                      generate(reps=1000,type="bootstrap")|>
+                                                      calculate(stat="mean")
+
+free_throw_attempts_play_offs_percentile_confidence_interval<-free_throw_attempts_play_offs_bootstrap_distribution|>
+                                                              get_confidence_interval(level=0.95,type="percentile")
+
+free_throw_attempts_play_offs_confidence_interval<-visualize(free_throw_attempts_play_offs_bootstrap_distribution) +
+                                                   shade_confidence_interval(endpoints=free_throw_attempts_play_offs_percentile_confidence_interval)+
+                                                   labs(x="Mean Difference in Free Throw Attempts",
+                                                        title="Bootstrap Sampling Distribution for Mean Difference in Free Throw Attempts \n(Regular Season, n=1000)")
+
+free_throw_attempts_regular_season_confidence_interval     
+free_throw_attempts_regular_season_percentile_confidence_interval
+free_throw_attempts_play_offs_confidence_interval
+free_throw_attempts_play_offs_percentile_confidence_interval
+```
+Surprisingly, the intervasl suggests there may be a stronger relationship between having more wins and attempting more free throws when compared to field goal and three pointer attempts. What is also interesting is that when compared to making actual free throws, the interval constructed from using the regular season data spans similar values.
+
+<br>
+
+### Final Selections
+
+The regular season data contains approximately 93% of all games in all the data explored while the play-offs data contains approximately 7%. For each of the 95% confidence intervals constructed from each sets of data, the absolute values of the centres of the 95% confidence intervals constructed from using each of the regular season and play-offs data will be divided by their ranges and also multiplied by their respective proportions. This method will focus on variables with mean differences with higher values while also penalizing ones with wider (less precise) intervals. The 6 variables with the greatest computed values will be the top 6 variables selected for statistical modelling.
+
+```{r}
+score<-function(ci1,ci2){
+  return ((0.93 * (((ci1[[1]]+ci1[[2]])/2)/(ci1[[2]]-ci1[[1]]))) + (0.07 * (((ci2[[1]]+ci2[[2]])/2)/(ci2[[2]]-ci2[[1]]))))
+}
+
+field_goals_score<-score(field_goals_regular_season_percentile_confidence_interval,
+                         field_goals_play_offs_percentile_confidence_interval)
+
+three_pointers_score<-score(three_pointers_regular_season_percentile_confidence_interval,
+                            three_pointers_play_offs_percentile_confidence_interval)
+
+free_throws_score<-score(free_throws_regular_season_percentile_confidence_interval,
+                         free_throws_play_offs_percentile_confidence_interval)
+
+rebounds_score<-score(rebounds_regular_season_percentile_confidence_interval,
+                      rebounds_play_offs_percentile_confidence_interval)
+
+assists_score<-score(assists_regular_season_percentile_confidence_interval,
+                     assists_play_offs_percentile_confidence_interval)
+
+steals_score<-score(steals_regular_season_percentile_confidence_interval,
+                    steals_play_offs_percentile_confidence_interval)
+
+blocks_score<-score(blocks_regular_season_percentile_confidence_interval,
+                    blocks_play_offs_percentile_confidence_interval)
+
+fouls_score<-score(fouls_regular_season_percentile_confidence_interval,
+                   fouls_play_offs_percentile_confidence_interval)
+
+turnovers_score<-score(turnovers_regular_season_percentile_confidence_interval,
+                       turnovers_play_offs_percentile_confidence_interval)
+
+field_goal_attempts_score<-score(field_goal_attempts_regular_season_percentile_confidence_interval,
+                                 field_goal_attempts_play_offs_percentile_confidence_interval)
+
+three_pointer_attempts_score<-score(three_pointer_attempts_regular_season_percentile_confidence_interval,
+                                    three_pointer_attempts_play_offs_percentile_confidence_interval)
+                                    
+free_throw_attempts_score<-score(free_throw_attempts_regular_season_percentile_confidence_interval,
+                                 free_throw_attempts_play_offs_percentile_confidence_interval)
+
+field_goals_score
+three_pointers_score
+free_throws_score
+rebounds_score
+assists_score
+steals_score
+blocks_score
+fouls_score
+turnovers_score
+field_goal_attempts_score
+three_pointer_attempts_score
+free_throw_attempts_score
+```
+Based on the computations, field goals, three-pointers, free throws, rebounds, assists, and blocks will be selected as the top half variables to predict wins and losses in statistical modelling.

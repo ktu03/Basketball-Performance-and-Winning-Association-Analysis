@@ -1,0 +1,1673 @@
+---
+title: "Basketball Performance and Winning Assocation Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Initial Loading
+
+The libraries used and datasets are initially loaded.
+
+```{r}
+library("tidyverse")
+library("stringr")
+
+regular_season_box_scores_1<-read.csv("regular_season_box_scores_2010_2024_part_1.csv")
+regular_season_box_scores_2<-read.csv("regular_season_box_scores_2010_2024_part_2.csv")
+regular_season_box_scores_3<-read.csv("regular_season_box_scores_2010_2024_part_3.csv")
+play_off_box_scores<-read.csv("play_off_box_scores_2010_2024.csv")
+play_off_totals<-read.csv("play_off_totals_2010_2024.csv")
+regular_season_totals<-read.csv("regular_season_totals_2010_2024.csv")
+```
+
+## Data Wrangling
+
+### Data Cleaning
+
+The box score datasets for the regular seasons are merged into one and unnecessary columns are removed while most of the remaining columns are renamed for clarity. Additionally, column types are changed to more suitable types based on the variable. The minutes column was split into minutes and seconds so that there were two numeric columns and teamCity and teamName were merged into one column as the team name combined with the city name is better known. Note that after cleaning the data, only the first 10000 rows of each dataframe are displayed.
+
+```{r}
+
+#Merge all 3 dataframes of regular box scores into one
+
+regular_season_box_scores<-rbind(regular_season_box_scores_1,regular_season_box_scores_2,regular_season_box_scores_3)
+
+#Remove unnecessary columns
+
+regular_season_box_scores<-regular_season_box_scores|>select(-teamSlug,-jerseyNum)
+play_off_box_scores<-play_off_box_scores|>select(-teamSlug,)
+regular_season_totals<-regular_season_totals|>select(-AVAILABLE_FLAG)
+play_off_totals<-play_off_totals|>select(-AVAILABLE_FLAG)
+
+#Rename columns
+
+regular_season_box_scores<-regular_season_box_scores|>rename(seasonYear=season_year,gameDate=game_date)
+
+play_off_box_scores<-play_off_box_scores|>rename(seasonYear=season_year,gameDate=game_date)
+
+play_off_totals<-play_off_totals|>rename(seasonYear=SEASON_YEAR, teamID=TEAM_ID, 
+                                         teamAbbreviation=TEAM_ABBREVIATION, teamName=TEAM_NAME, gameId=GAME_ID,
+                                         gameDate=GAME_DATE, matchup=MATCHUP, minutes=MIN, 
+                                         fieldGoalsAttempted=FGA, fieldGoalsMade=FGM, 
+                                         fieldGoalsPercentage=FG_PCT, threePointersMade=FG3M, 
+                                         threePointersAttempted=FG3A,threePointersPercentage=FG3_PCT,
+                                         freeThrowsMade=FTM, freeThrowsAttempted=FTA, 
+                                         freeThrowsPercentage=FT_PCT, reboundsOffensive=OREB,
+                                         reboundsDefensive=DREB, reboundsTotal=REB,assists=AST, turnovers=TOV,
+                                         steals=STL,blocks=BLK, opponentBlocks=BLKA,foulsPersonal=PF, 
+                                         foulsPersonalDrawn=PFD, points=PTS,plusMinusPoints=PLUS_MINUS, 
+                                         rankGamesPlayed=GP_RANK, rankWins=W_RANK,rankLosses=L_RANK, 
+                                         rankWinPercentage=W_PCT_RANK, rankMinutes=MIN_RANK, 
+                                         rankFieldGoalsMade=FGM_RANK, rankFieldGoalsAttempted=FGA_RANK, 
+                                         rankThreePointersMade=FG3M_RANK, rankFieldGoalsPercentage=FG_PCT_RANK, 
+                                         rankThreePointersAttempted=FG3A_RANK, 
+                                         rankThreePointersPercentage=FG3_PCT_RANK, rankFreeThrowsMade=FTM_RANK,
+                                         rankFreeThrowsAttempted=FTA_RANK, rankFreeThrowsPercentage=FT_PCT_RANK,
+                                         rankReboundsOffensive=OREB_RANK, rankReboundsDefensive=DREB_RANK,
+                                         rankRebounds=REB_RANK,rankAssists=AST_RANK,rankTurnovers=TOV_RANK,
+                                         rankSteals=STL_RANK,rankBlocks=BLK_RANK,rankOpponentBlocks=BLKA_RANK,
+                                         rankFoulsPersonal=PF_RANK,rankFoulsPersonalDrawn=PFD_RANK,
+                                         rankPoints=PTS_RANK, rankPlusMinusPoints=PLUS_MINUS_RANK)
+
+regular_season_totals<-regular_season_totals|>rename(seasonYear=SEASON_YEAR,teamID=TEAM_ID,
+                                                     teamAbbreviation=TEAM_ABBREVIATION,
+                                                     teamName=TEAM_NAME,gameId=GAME_ID,gameDate=GAME_DATE,
+                                                     matchup=MATCHUP,minutes=MIN,fieldGoalsAttempted=FGA,
+                                                     fieldGoalsMade=FGM,fieldGoalsPercentage=FG_PCT,
+                                                     threePointersMade=FG3M,threePointersAttempted=FG3A,
+                                                     threePointersPercentage=FG3_PCT,freeThrowsMade=FTM,
+                                                     freeThrowsAttempted=FTA,freeThrowsPercentage=FT_PCT,
+                                                     reboundsOffensive=OREB,reboundsDefensive=DREB,
+                                                     reboundsTotal=REB,assists=AST,turnovers=TOV,steals=STL,
+                                                     blocks=BLK,opponentBlocks=BLKA,foulsPersonal=PF,
+                                                     foulsPersonalDrawn=PFD,points=PTS,
+                                                     plusMinusPoints=PLUS_MINUS,rankGamesPlayed=GP_RANK,
+                                                     rankWins=W_RANK,rankLosses=L_RANK,
+                                                     rankWinPercentage=W_PCT_RANK,rankMinutes=MIN_RANK,
+                                                     rankFieldGoalsMade=FGM_RANK,
+                                                     rankFieldGoalsAttempted=FGA_RANK,
+                                                     rankThreePointersMade=FG3M_RANK,
+                                                     rankFieldGoalsPercentage=FG_PCT_RANK,
+                                                     rankThreePointersAttempted=FG3A_RANK,
+                                                     rankThreePointersPercentage=FG3_PCT_RANK,
+                                                     rankFreeThrowsMade=FTM_RANK,
+                                                     rankFreeThrowsAttempted=FTA_RANK,
+                                                     rankFreeThrowsPercentage=FT_PCT_RANK,
+                                                     rankReboundsOffensive=OREB_RANK,
+                                                     rankReboundsDefensive=DREB_RANK,
+                                                     rankRebounds=REB_RANK,rankAssists=AST_RANK,
+                                                     rankTurnovers=TOV_RANK,rankSteals=STL_RANK,
+                                                     rankBlocks=BLK_RANK,rankOpponentBlocks=BLKA_RANK,
+                                                     rankFoulsPersonal=PF_RANK,
+                                                     rankFoulsPersonalDrawn=PFD_RANK,rankPoints=PTS_RANK,
+                                                     rankPlusMinusPoints=PLUS_MINUS_RANK)
+
+#Rename row values
+#Note that the Charlotte Bobcats are now the Charlotte Hornets
+
+regular_season_box_scores$teamName[regular_season_box_scores$teamName=="Charlotte Bobcats"]<-"Charlotte Hornets"
+regular_season_totals$teamName[regular_season_totals$teamName=="Charlotte Bobcats"]<-"Charlotte Hornets"
+play_off_box_scores$teamName[play_off_box_scores$teamName=="Charlotte Bobcats"]<-"Charlotte Hornets"
+play_off_totals$teamName[play_off_totals$teamName=="Charlotte Bobcats"]<-"Charlotte Hornets"
+
+regular_season_box_scores$teamName[regular_season_box_scores$teamName=="New Orleans Hornets"]<-"New Orleans Pelicans"
+regular_season_totals$teamName[regular_season_totals$teamName=="New Orleans Hornets"]<-"New Orleans Pelicans"
+play_off_box_scores$teamName[play_off_box_scores$teamName=="New Orleans Hornets"]<-"New Orleans Pelicans"
+play_off_totals$teamName[play_off_totals$teamName=="New Orleans Hornets"]<-"New Orleans Pelicans"
+
+regular_season_box_scores$teamName[regular_season_box_scores$teamName=="New Jersey Nets"]<-"Brooklyn Nets"
+regular_season_totals$teamName[regular_season_totals$teamName=="New Jersey Nets"]<-"Brooklyn Nets"
+play_off_box_scores$teamName[play_off_box_scores$teamName=="New Jersey Nets"]<-"Brooklyn Nets"
+play_off_totals$teamName[play_off_totals$teamName=="New Jersey Nets"]<-"Brooklyn Nets"
+
+regular_season_box_scores$teamName[regular_season_box_scores$teamName=="LA Clippers"]<-"Los Angeles Clippers"
+regular_season_totals$teamName[regular_season_totals$teamName=="LA Clippers"]<-"Los Angeles Clippers"
+play_off_box_scores$teamName[play_off_box_scores$teamName=="LA Clippers"]<-"Los Angeles Clippers"
+play_off_totals$teamName[play_off_totals$teamName=="LA Clippers"]<-"Los Angeles Clippers"
+
+#Adjust gameDate and seasonYear column type from chr to date
+
+regular_season_box_scores$gameDate<-as.Date(regular_season_box_scores$gameDate,format="%Y-%m-%d")
+play_off_box_scores$gameDate<-as.Date(play_off_box_scores$gameDate,format="%Y-%m-%d")
+play_off_totals$gameDate<-as.Date(play_off_totals$gameDate,format="%Y-%m-%d")
+regular_season_totals$gameDate<-as.Date(regular_season_totals$gameDate,format="%Y-%m-%d")
+
+#Adjust percentage columns to account for rounding difference in R
+
+regular_season_box_scores$fieldGoalsPercentage<-ifelse(regular_season_box_scores$fieldGoalsPercentage==0,
+                                                       regular_season_box_scores$fieldGoalsPercentage,
+                                                       round(regular_season_box_scores$fieldGoalsMade/regular_season_box_scores$fieldGoalsAttempted,3))
+regular_season_box_scores$threePointersPercentage<-ifelse(regular_season_box_scores$threePointersPercentage==0,
+                                                          regular_season_box_scores$threePointersPercentage,
+                                                   round(regular_season_box_scores$threePointersMade/regular_season_box_scores$threePointersAttempted,3))
+regular_season_box_scores$freeThrowsPercentage<-ifelse(regular_season_box_scores$freeThrowsPercentage==0,
+                                                       regular_season_box_scores$freeThrowsPercentage,
+                                                       round(regular_season_box_scores$freeThrowsMade/regular_season_box_scores$freeThrowsAttempted,3))
+
+play_off_box_scores$fieldGoalsPercentage<-ifelse(play_off_box_scores$fieldGoalsPercentage==0,
+                                                       play_off_box_scores$fieldGoalsPercentage,
+                                                 round(play_off_box_scores$fieldGoalsMade/play_off_box_scores$fieldGoalsAttempted,3))
+play_off_box_scores$threePointersPercentage<-ifelse(play_off_box_scores$threePointersPercentage==0,
+                                                    play_off_box_scores$threePointersPercentage,
+                                                    round(play_off_box_scores$threePointersMade/play_off_box_scores$threePointersAttempted,3))
+play_off_box_scores$freeThrowsPercentage<-ifelse(play_off_box_scores$freeThrowsPercentage==0,
+                                                 play_off_box_scores$freeThrowsPercentage,
+                                                 round(play_off_box_scores$freeThrowsMade/play_off_box_scores$freeThrowsAttempted,3))
+
+play_off_totals$fieldGoalsPercentage<-ifelse(play_off_totals$fieldGoalsPercentage==0,
+                                                       play_off_totals$fieldGoalsPercentage,
+                                             round(play_off_totals$fieldGoalsMade/play_off_totals$fieldGoalsAttempted,3))
+play_off_totals$threePointersPercentage<-ifelse(play_off_totals$threePointersPercentage==0,
+                                                play_off_totals$threePointersPercentage,
+                                                round(play_off_totals$threePointersMade/play_off_totals$threePointersAttempted,3))
+play_off_totals$freeThrowsPercentage<-ifelse(play_off_totals$freeThrowsPercentage==0,
+                                             play_off_totals$freeThrowsPercentage,
+                                             round(play_off_totals$freeThrowsMade/play_off_totals$freeThrowsAttempted,3))
+
+regular_season_totals$fieldGoalsPercentage<-ifelse(regular_season_totals$fieldGoalsPercentage==0,
+                                                   regular_season_totals$fieldGoalsPercentage,
+                                                   round(regular_season_totals$fieldGoalsMade/regular_season_totals$fieldGoalsAttempted,3))
+regular_season_totals$threePointersPercentage<-ifelse(regular_season_totals$threePointersPercentage==0,
+                                                      regular_season_totals$threePointersPercentage,
+                                                      round(regular_season_totals$threePointersMade/regular_season_totals$threePointersAttempted,3))
+regular_season_totals$freeThrowsPercentage<-ifelse(regular_season_totals$freeThrowsPercentage==0,
+                                                   regular_season_totals$freeThrowsPercentage,
+                                                   round(regular_season_totals$freeThrowsMade/regular_season_totals$freeThrowsAttempted,3))
+
+#Separate minutes and seconds
+
+regular_season_box_scores<-regular_season_box_scores|>separate(minutes,into=c("minutes","seconds"),sep=":",
+                                                               convert=TRUE)
+regular_season_box_scores$minutes<-ifelse(is.na(regular_season_box_scores$minutes),0,
+                                          regular_season_box_scores$minutes)
+regular_season_box_scores$seconds<-ifelse(is.na(regular_season_box_scores$seconds),0,
+                                          regular_season_box_scores$seconds)
+
+play_off_box_scores<-play_off_box_scores|>separate(minutes,into=c("minutes","seconds"),sep=":",
+                                                   convert=TRUE)
+play_off_box_scores$minutes<-ifelse(is.na(play_off_box_scores$minutes),0,
+                                    play_off_box_scores$minutes)
+play_off_box_scores$seconds<-ifelse(is.na(play_off_box_scores$seconds),0,
+                                    play_off_box_scores$seconds)
+
+#Sort in ascending order by date
+
+regular_season_box_scores<-regular_season_box_scores[order(regular_season_box_scores$gameDate),]
+play_off_box_scores<-play_off_box_scores[order(play_off_box_scores$gameDate),]
+play_off_totals<-play_off_totals[order(play_off_totals$gameDate),]
+regular_season_totals<-regular_season_totals[order(regular_season_totals$gameDate),]
+
+#Merge teamCity and teamName into one column
+
+regular_season_box_scores$teamName<-paste(regular_season_box_scores$teamCity,regular_season_box_scores$teamName,
+                                          sep=" ")
+play_off_box_scores$teamName<-paste(play_off_box_scores$teamCity,play_off_box_scores$teamName,sep=" ")
+
+#Convert teamName,teamTricode as a factor
+
+regular_season_box_scores<-regular_season_box_scores|>mutate(across(c(teamName,teamTricode),as.factor))
+regular_season_totals<-regular_season_totals|>mutate(across(c(teamName,WL),as.factor))
+play_off_box_scores<-play_off_box_scores|>mutate(across(c(teamName,teamTricode),as.factor))
+play_off_totals<-play_off_totals|>mutate(across(c(teamName,WL),as.factor))
+
+#Remove rows containing inadmissible values
+
+regular_season_box_scores<-regular_season_box_scores|>filter(gameDate>="2010-10-26",gameDate<="2024-04-14",
+                                                             minutes>=0,seconds>=0,fieldGoalsMade>=0,
+                                                             fieldGoalsAttempted>=0,
+                                                             fieldGoalsPercentage>=0,fieldGoalsPercentage<=1,
+                                                             threePointersMade>=0,threePointersAttempted>=0,
+                                                             fieldGoalsPercentage>=0,fieldGoalsPercentage<=1,
+                                                             freeThrowsMade>=0,freeThrowsAttempted>=0,
+                                                             freeThrowsPercentage>=0,freeThrowsPercentage<=1, 
+                                                             reboundsOffensive>=0,reboundsDefensive>=0,
+                                                             reboundsTotal==reboundsOffensive+reboundsDefensive,
+                                                             assists>=0,steals>=0,blocks>=0,turnovers>=0,
+                                                             foulsPersonal>=0,points>=0)
+
+play_off_box_scores<-play_off_box_scores|>filter(gameDate>="2011-04-16",gameDate<="2024-06-17",minutes>=0,
+                                                 seconds>=0,fieldGoalsMade>=0,fieldGoalsMade>=0,
+                                                 fieldGoalsAttempted>=0,
+                                                 fieldGoalsPercentage>=0,fieldGoalsPercentage<=1,
+                                                 threePointersMade>=0,threePointersAttempted>=0,
+                                                 fieldGoalsPercentage>=0,fieldGoalsPercentage<=1,
+                                                 freeThrowsMade>=0,freeThrowsAttempted>=0,
+                                                 freeThrowsPercentage>=0,freeThrowsPercentage<=1,
+                                                 reboundsOffensive>=0,reboundsDefensive>=0,
+                                                 reboundsTotal==reboundsOffensive+reboundsDefensive,
+                                                 assists>=0,steals>=0,blocks>=0,turnovers>=0,foulsPersonal>=0,
+                                                 points>=0)
+
+play_off_totals<-play_off_totals|>filter(gameDate>="2011-04-16",gameDate<="2024-06-17",minutes>=0,
+                                         fieldGoalsMade>=0,fieldGoalsMade>=0,fieldGoalsAttempted>=0,
+                                         fieldGoalsPercentage>=0,fieldGoalsPercentage<=1,threePointersMade>=0,
+                                         threePointersAttempted>=0,fieldGoalsPercentage>=0,
+                                         fieldGoalsPercentage<=1,freeThrowsMade>=0,freeThrowsAttempted>=0,
+                                         freeThrowsPercentage>=0,freeThrowsPercentage<=1,reboundsOffensive>=0,
+                                         reboundsDefensive>=0,
+                                         reboundsTotal==reboundsOffensive+reboundsDefensive,assists>=0,
+                                         steals>=0,blocks>=0,turnovers>=0,foulsPersonal>=0,
+                                         foulsPersonalDrawn>=0,points>=0,rankGamesPlayed>=0,rankWins>=0,
+                                         rankLosses>=0,rankWinPercentage>=0,rankMinutes>=0,
+                                         rankFieldGoalsMade>=0,rankFieldGoalsAttempted>=0,
+                                         rankThreePointersMade>=0,rankFieldGoalsPercentage>=0,
+                                         rankThreePointersAttempted>=0,rankThreePointersPercentage>=0,
+                                         rankFreeThrowsMade>=0,rankFreeThrowsAttempted>=0,
+                                         rankFreeThrowsPercentage>=0,rankReboundsOffensive>=0,
+                                         rankReboundsDefensive>=0,rankRebounds>=0,rankAssists>=0,
+                                         rankTurnovers>=0,rankSteals>=0,rankBlocks>=0,rankOpponentBlocks>=0,
+                                         rankFoulsPersonal>=0,rankFoulsPersonalDrawn>=0,
+                                         rankPoints>=0,rankPlusMinusPoints>=1)
+
+regular_season_totals<-regular_season_totals|>filter(gameDate>="2010-10-26",gameDate<="2024-04-14",minutes>=0,
+                                                     fieldGoalsMade>=0,fieldGoalsMade>=0,fieldGoalsAttempted>=0,
+                                                     fieldGoalsPercentage>=0,fieldGoalsPercentage<=1,
+                                                     threePointersMade>=0,threePointersAttempted>=0,
+                                                     fieldGoalsPercentage>=0,fieldGoalsPercentage<=1,
+                                                     freeThrowsMade>=0,freeThrowsAttempted>=0,
+                                                     freeThrowsPercentage>=0,freeThrowsPercentage<=1,
+                                                     reboundsOffensive>=0,reboundsDefensive>=0,
+                                                     reboundsTotal==reboundsOffensive+reboundsDefensive,
+                                                     assists>=0,steals>=0,blocks>=0,turnovers>=0,
+                                                     foulsPersonal>=0,foulsPersonalDrawn>=0,points>=0,
+                                                     rankGamesPlayed>=1,rankWins>=1,rankLosses>=1,
+                                                     rankWinPercentage>=1,rankMinutes>=1,rankFieldGoalsMade>=1,
+                                                     rankFieldGoalsAttempted>=1,rankThreePointersMade>=1,
+                                                     rankFieldGoalsPercentage>=1,rankThreePointersAttempted>=1,
+                                                     rankThreePointersPercentage>=1,rankFreeThrowsMade>=1,
+                                                     rankFreeThrowsAttempted>=1,rankFreeThrowsPercentage>=1,
+                                                     rankReboundsOffensive>=1,rankReboundsDefensive>=1,
+                                                     rankRebounds>=1,rankAssists>=1,rankTurnovers>=1,
+                                                     rankSteals>=1,rankBlocks>=1,rankOpponentBlocks>=1,
+                                                     rankFoulsPersonal>=1,rankFoulsPersonalDrawn>=1,
+                                                     rankPoints>=1,rankPlusMinusPoints>=1)
+
+regular_season_box_scores
+regular_season_totals
+play_off_box_scores
+play_off_totals
+```
+## Summary Statistics
+
+By player, per season
+```{r}
+#Summary statistics by player per season
+
+regular_season_player_summary_stats<-regular_season_box_scores|>
+                                     filter(!grepl("DND|DNP|NWT",comment,ignore.case=TRUE))|>
+                                     group_by(seasonYear,personName,teamName)|>
+                                     summarise(totalMinutesPlayed=sum(minutes),
+                                              avgMinutesPlayed=mean(minutes),
+                                              totalFieldGoalsMade=sum(fieldGoalsMade),
+                                              avgFieldGoalsMade=mean(fieldGoalsMade),
+                                              sdFieldGoalsMade=sd(fieldGoalsMade),
+                                              totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                              avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                              totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                              avgFieldGoalPercentage=mean(fieldGoalsPercentage),
+                                              totalThreePointersMade=sum(threePointersMade),
+                                              avgThreePointersMade=mean(threePointersMade),
+                                              sdThreePointersMade=sd(threePointersMade),
+                                              totalThreePointersAttempted=sum(threePointersAttempted),
+                                              avgThreePointersAttempted=mean(threePointersAttempted),
+                                              totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                              avgThreePointersPercentage=mean(threePointersPercentage),
+                                              totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                              avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                              totalFreeThrowsMade=sum(freeThrowsMade),
+                                              avgFreeThrowsMade=mean(freeThrowsMade),
+                                              sdFreeThrowsMade=sd(freeThrowsMade),
+                                              totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                              avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                              totalReboundsOffensive=sum(reboundsOffensive),
+                                              avgReboundsOffensive=mean(reboundsOffensive),
+                                              sdReboundsOffensive=sd(reboundsOffensive),
+                                              totalReboundsDefensive=sum(reboundsDefensive),
+                                              avgReboundsDefensive=mean(reboundsDefensive),
+                                              sdReboundsDefensive=sd(reboundsDefensive),
+                                              totalRebounds=sum(reboundsTotal),
+                                              avgRebounds=mean(reboundsTotal),
+                                              sdRebounds=sd(reboundsTotal),
+                                              totalAssists=sum(assists),
+                                              avgAssists=mean(assists),
+                                              sdAssists=sd(assists),
+                                              totalSteals=sum(steals),
+                                              avgSteals=mean(steals),
+                                              sdSteals=sd(steals),
+                                              totalBlocks=sum(blocks),
+                                              avgBlocks=mean(blocks),
+                                              sdBlocks=sd(blocks),
+                                              totalTurnovers=sum(turnovers),
+                                              avgTurnovers=mean(turnovers),
+                                              sdTurnovers=sd(turnovers),
+                                              totalFouls=sum(foulsPersonal),
+                                              avgFouls=mean(foulsPersonal),
+                                              sdFouls=sd(foulsPersonal),
+                                              totalPoints=sum(points),
+                                              avgPoints=mean(points),
+                                              sdPoints=sd(points),
+                                              avgPlusMinusPoints=mean(plusMinusPoints),
+                                              totalPlusMinusPoints=sum(plusMinusPoints))
+
+regular_season_player_summary_stats<-regular_season_player_summary_stats|>group_by(seasonYear)|>
+                                    mutate(rankMinutesPlayed=rank(totalMinutesPlayed,ties.method="min"),
+                                           rankFieldGoalsMade=rank(totalFieldGoalsMade,ties.method="min"),
+                                           rankFieldGoalsAttempted=rank(totalFieldGoalsMade,ties.method="min"),
+                                           rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,
+                                                                         ties.method="min"),
+                                           rankThreePointersMade=rank(totalThreePointersMade,ties.method="min"),
+                                           rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                           ties.method="min"),
+                                           rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                            ties.method="min"),
+                                           rankFreeThrowsMade=rank(totalFreeThrowsMade,ties.method="min"),
+                                           rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,
+                                                                        ties.method="min"),
+                                           rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage,
+                                                                         ties.method="min"),
+                                           rankReboundsOffensive=rank(totalReboundsOffensive,ties.method="min"),
+                                           rankReboundsDefensive=rank(totalReboundsDefensive,ties.method="min"),
+                                           rankRebounds=rank(totalRebounds,ties.method="min"),
+                                           rankAssists=rank(totalAssists,ties.method="min"),
+                                           rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                           rankSteals=rank(totalSteals,ties.method="min"),
+                                           rankBlocks=rank(totalBlocks,ties.method="min"),
+                                           rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                           rankPoints=rank(totalPoints),ties.method="min",
+                                           rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,ties.method="min"),
+                                           rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,ties.method="min"))
+                                                                                                  
+
+play_off_player_summary_stats<-play_off_box_scores|>filter(!grepl("DND|DNP|NWT",comment,ignore.case=TRUE))|>
+                                                    group_by(seasonYear,personName,teamName)|>
+                                                    summarise(totalMinutesPlayed=sum(minutes),
+                                                              avgMinutesPlayed=mean(minutes),
+                                                              totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                              avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                              sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                              totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                              avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                              totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                              avgFieldGoalPercentage=mean(fieldGoalsPercentage),
+                                                              totalThreePointersMade=sum(threePointersMade),
+                                                              avgThreePointersMade=mean(threePointersMade),
+                                                              sdThreePointersMade=sd(threePointersMade),
+                                                              totalThreePointersAttempted=sum(threePointersAttempted),
+                                                              avgThreePointersAttempted=mean(threePointersAttempted),
+                                                              totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                              avgThreePointersPercentage=mean(threePointersPercentage),
+                                                              totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                              avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                              totalFreeThrowsMade=sum(freeThrowsMade),
+                                                              avgFreeThrowsMade=mean(freeThrowsMade),
+                                                              sdFreeThrowsMade=sd(freeThrowsMade),
+                                                              totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                              avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                              totalReboundsOffensive=sum(reboundsOffensive),
+                                                              avgReboundsOffensive=mean(reboundsOffensive),
+                                                              sdReboundsOffensive=sd(reboundsOffensive),
+                                                              totalReboundsDefensive=sum(reboundsDefensive),
+                                                              avgReboundsDefensive=mean(reboundsDefensive),
+                                                              sdReboundsDefensive=sd(reboundsDefensive),
+                                                              totalRebounds=sum(reboundsTotal),
+                                                              avgRebounds=mean(reboundsTotal),
+                                                              sdRebounds=sd(reboundsTotal),
+                                                              totalAssists=sum(assists),
+                                                              avgAssists=mean(assists),
+                                                              sdAssists=sd(assists),
+                                                              totalSteals=sum(steals),
+                                                              avgSteals=mean(steals),
+                                                              sdSteals=sd(steals),
+                                                              totalBlocks=sum(blocks),
+                                                              avgBlocks=mean(blocks),
+                                                              sdBlocks=sd(blocks),
+                                                              totalTurnovers=sum(turnovers),
+                                                              avgTurnovers=mean(turnovers),
+                                                              sdTurnovers=sd(turnovers),
+                                                              totalFouls=sum(foulsPersonal),
+                                                              avgFouls=mean(foulsPersonal),
+                                                              sdFouls=sd(foulsPersonal),
+                                                              totalPoints=sum(points),
+                                                              avgPoints=mean(points),
+                                                              sdPoints=sd(points),
+                                                              avgPlusMinusPoints=mean(plusMinusPoints),
+                                                              totalPlusMinusPoints=sum(plusMinusPoints))
+
+play_off_player_summary_stats<-play_off_player_summary_stats|>group_by(seasonYear)|>
+                               mutate(rankMinutesPlayed=rank(totalMinutesPlayed,ties.method="min"),
+                                      rankFieldGoalsMade=rank(totalFieldGoalsMade,ties.method="min"),
+                                      rankFieldGoalsAttempted=rank(totalFieldGoalsMade,ties.method="min"),
+                                      rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,
+                                                                    ties.method="min"),
+                                      rankThreePointersMade=rank(totalThreePointersMade,ties.method="min"),
+                                      rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                      ties.method="min"),
+                                      rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                       ties.method="min"),
+                                      rankFreeThrowsMade=rank(totalFreeThrowsMade,ties.method="min"),
+                                      rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,ties.method="min"),
+                                      rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage,
+                                                                    ties.method="min"),
+                                      rankReboundsOffensive=rank(totalReboundsOffensive,ties.method="min"),
+                                      rankReboundsDefensive=rank(totalReboundsDefensive,ties.method="min"),
+                                      rankRebounds=rank(totalRebounds,ties.method="min"),
+                                      rankAssists=rank(totalAssists,ties.method="min"),
+                                      rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                      rankSteals=rank(totalSteals,ties.method="min"),
+                                      rankBlocks=rank(totalBlocks,ties.method="min"),
+                                      rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                      rankPoints=rank(totalPoints),ties.method="min",
+                                      rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,ties.method="min"),
+                                      rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,ties.method="min"))
+
+regular_season_player_summary_stats
+play_off_player_summary_stats
+```
+
+
+By team, per season
+```{r}
+#Summary Statistics by team per season
+
+# To add total minutes all players played on a team per season
+
+regular_season_player_stats<-regular_season_player_summary_stats|>group_by(teamName,seasonYear)|>
+                             summarise(totalMinutesPlayersPlayed=sum(totalMinutesPlayed))|>
+                             select(seasonYear,teamName,totalMinutesPlayersPlayed)
+
+play_off_player_stats<-play_off_player_summary_stats|>group_by(teamName,seasonYear)|>
+                       summarise(totalMinutesPlayersPlayed=sum(totalMinutesPlayed))|>
+                       select(seasonYear,teamName,totalMinutesPlayersPlayed)
+
+regular_season_team_summary_stats<-regular_season_totals|>group_by(seasonYear,teamName)|>
+                                   summarise(totalWins=sum(str_count(WL,"W")),
+                                             avgWins=mean(str_count(WL,"W")),
+                                             totalLosses=sum(str_count(WL,"L")),
+                                             avgLosses=mean(str_count(WL,"L")),
+                                             winPercentage=(totalWins/(totalWins+totalLosses)),
+                                             totalMinutesPlayed=sum(minutes),
+                                             avgMinutesPlayed=mean(minutes),
+                                             totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                             avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                             totalFieldGoalsMade=sum(fieldGoalsMade),
+                                             avgFieldGoalsMade=mean(fieldGoalsMade),
+                                             sdFieldGoalsMade=sd(fieldGoalsMade),
+                                             totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                             avgFieldGoalsPercentage=mean(fieldGoalsPercentage),
+                                             sdFieldGoalsPercentage=sd(fieldGoalsPercentage),
+                                             totalThreePointersMade=sum(threePointersMade),
+                                             avgThreePointersMade=mean(threePointersMade),
+                                             sdThreePointersMade=sd(threePointersMade),
+                                             totalThreePointersAttempted=sum(threePointersAttempted),
+                                             avgThreePointersAttempted=sum(threePointersAttempted),
+                                             totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                             avgThreePointersPercentage=mean(threePointersPercentage),
+                                             sdThreePointersPercentage=sd(threePointersPercentage),
+                                             totalFreeThrowsMade=sum(freeThrowsMade),
+                                             avgFreeThrowsMade=mean(freeThrowsMade),
+                                             sdFreeThrowsMade=sd(freeThrowsMade),
+                                             totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                             avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                             totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                             avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                             sdFreeThrowsPercentage=sd(freeThrowsPercentage),
+                                             totalReboundsOffensive=sum(reboundsOffensive),
+                                             avgReboundsOffensive=mean(reboundsOffensive),
+                                             sdReboundsOffensive=sd(reboundsOffensive),
+                                             totalReboundsDefensive=sum(reboundsDefensive),
+                                             avgReboundsDefensive=mean(reboundsDefensive),
+                                             sdReboundsDefensive=sd(reboundsDefensive),
+                                             totalRebounds=sum(reboundsTotal),
+                                             avgRebounds=mean(reboundsTotal),
+                                             sdRebounds=sd(reboundsTotal),
+                                             totalAssists=sum(assists),
+                                             avgAssists=mean(assists),
+                                             sdAssists=sd(assists),
+                                             totalTurnovers=sum(turnovers),
+                                             avgTurnovers=mean(turnovers),
+                                             sdTurnovers=sd(turnovers),
+                                             totalSteals=sum(steals),
+                                             avgSteals=mean(steals),
+                                             sdSteals=sd(steals),
+                                             totalBlocks=sum(blocks),
+                                             avgBlocks=mean(blocks),
+                                             sdBlocks=sd(blocks),
+                                             totalOpponentBlocks=sum(opponentBlocks),
+                                             avgOpponentBlocks=mean(opponentBlocks),
+                                             sdOpponentBlocks=sd(opponentBlocks),
+                                             totalFouls=sum(foulsPersonal),
+                                             avgFouls=mean(foulsPersonal),
+                                             sdFouls=sd(foulsPersonal),
+                                             totalDrawnFouls=sum(foulsPersonalDrawn),
+                                             avgDrawnFouls=mean(foulsPersonalDrawn),
+                                             sdDrawnFouls=sd(foulsPersonalDrawn),
+                                             totalPoints=sum(points),
+                                             avgPoints=mean(points),
+                                             sdPoints=sd(points),
+                                             avgPlusMinusPoints=mean(plusMinusPoints),
+                                             totalPlusMinusPoints=sum(plusMinusPoints),
+                                             .groups="keep")
+    
+regular_season_team_summary_stats<-regular_season_team_summary_stats|>
+                                   left_join(regular_season_player_stats,by=c("seasonYear","teamName"))|>
+                                   mutate(rankWins=rank(totalWins,ties.method="min"),
+                                          rankLosses=rank(totalLosses,ties.method="min"),
+                                          rankMinutesPlayed=rank(totalMinutesPlayed,ties.method="min"),
+                                          rankFieldGoalsMade=rank(totalFieldGoalsMade,ties.method="min"),
+                                          rankFieldGoalsAttempted=rank(totalFieldGoalsMade,ties.method="min"),
+                                          rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,
+                                                                        ties.method="min"),
+                                          rankThreePointersMade=rank(totalThreePointersMade,ties.method="min"),
+                                          rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                          ties.method="min"),
+                                          rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                           ties.method="min"),
+                                          rankFreeThrowsMade=rank(totalFreeThrowsMade,ties.method="min"),
+                                          rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,
+                                                                       ties.method="min"),
+                                          rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage,
+                                                                        ties.method="min"),
+                                          rankReboundsOffensive=rank(totalReboundsOffensive,ties.method="min"),
+                                          rankReboundsDefensive=rank(totalReboundsDefensive,ties.method="min"),
+                                          rankRebounds=rank(totalRebounds,ties.method="min"),
+                                          rankAssists=rank(totalAssists,ties.method="min"),
+                                          rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                          rankSteals=rank(totalSteals,ties.method="min"),
+                                          rankBlocks=rank(totalBlocks,ties.method="min"),
+                                          rankOpponentBlocks=rank(totalOpponentBlocks,ties.method="min"),
+                                          rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                          rankFoulsPersonalDrawn=rank(totalDrawnFouls,ties.method="min"),
+                                          rankPoints=rank(totalPoints),ties.method="min",
+                                          rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,ties.method="min"),
+                                          rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,ties.method="min"))
+
+play_off_team_summary_stats<-play_off_totals|>group_by(seasonYear,teamName)|>
+                                              summarise(totalWins=sum(str_count(WL,"W")),
+                                                        avgWins=mean(str_count(WL,"W")),
+                                                        totalLosses=sum(str_count(WL,"L")),
+                                                        avgLosses=mean(str_count(WL,"L")),
+                                                        winPercentage=totalWins/(totalWins+totalLosses),
+                                                        totalMinutesPlayed=sum(minutes),
+                                                        avgMinutesPlayed=mean(minutes),
+                                                        totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                        avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                        totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                        avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                        sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                        totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                        avgFieldGoalsPercentage=mean(fieldGoalsPercentage),
+                                                        sdFieldGoalsPercentage=sd(fieldGoalsPercentage),
+                                                        totalThreePointersMade=sum(threePointersMade),
+                                                        avgThreePointersMade=mean(threePointersMade),
+                                                        sdThreePointersMade=sd(threePointersMade),
+                                                        totalThreePointersAttempted=sum(threePointersAttempted),
+                                                        avgThreePointersAttempted=sum(threePointersAttempted),
+                                                        totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                        avgThreePointersPercentage=mean(threePointersPercentage),
+                                                        sdThreePointersPercentage=sd(threePointersPercentage),
+                                                        totalFreeThrowsMade=sum(freeThrowsMade),
+                                                        avgFreeThrowsMade=mean(freeThrowsMade),
+                                                        sdFreeThrowsMade=sd(freeThrowsMade),
+                                                        totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                        avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                        totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                        avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                        sdFreeThrowsPercentage=sd(freeThrowsPercentage),
+                                                        totalReboundsOffensive=sum(reboundsOffensive),
+                                                        avgReboundsOffensive=mean(reboundsOffensive),
+                                                        sdReboundsOffensive=sd(reboundsOffensive),
+                                                        totalReboundsDefensive=sum(reboundsDefensive),
+                                                        avgReboundsDefensive=mean(reboundsDefensive),
+                                                        sdReboundsDefensive=sd(reboundsDefensive),
+                                                        totalRebounds=sum(reboundsTotal),
+                                                        avgRebounds=mean(reboundsTotal),
+                                                        sdRebounds=sd(reboundsTotal),
+                                                        totalAssists=sum(assists),
+                                                        avgAssists=mean(assists),
+                                                        sdAssists=sd(assists),
+                                                        totalTurnovers=sum(turnovers),
+                                                        avgTurnovers=mean(turnovers),
+                                                        sdTurnovers=sd(turnovers),
+                                                        totalSteals=sum(steals),
+                                                        vgSteals=mean(steals),
+                                                        sdSteals=sd(steals),
+                                                        totalBlocks=sum(blocks),
+                                                        avgBlocks=mean(blocks),
+                                                        sdBlocks=sd(blocks),
+                                                        totalOpponentBlocks=sum(opponentBlocks),
+                                                        avgOpponentBlocks=mean(opponentBlocks),
+                                                        sdOpponentBlocks=sd(opponentBlocks),
+                                                        totalFouls=sum(foulsPersonal),
+                                                        avgFouls=mean(foulsPersonal),
+                                                        sdFouls=sd(foulsPersonal),
+                                                        totalDrawnFouls=sum(foulsPersonalDrawn),
+                                                        avgDrawnFouls=mean(foulsPersonalDrawn),
+                                                        sdDrawnFouls=sd(foulsPersonalDrawn),
+                                                        totalPoints=sum(points),
+                                                        avgPoints=mean(points),
+                                                        sdPoints=sd(points),
+                                                        avgPlusMinusPoints=mean(plusMinusPoints),
+                                                        totalPlusMinusPoints=sum(plusMinusPoints),
+                                                        .groups="keep")
+          
+play_off_team_summary_stats<-play_off_team_summary_stats|>
+                             left_join(play_off_player_stats,by=c("seasonYear","teamName"))|>
+                             mutate(rankWins=rank(totalWins,ties.method="min"),
+                                    rankLosses=rank(totalLosses,ties.method="min"),
+                                    rankMinutesPlayed=rank(totalMinutesPlayed,ties.method="min"),
+                                    rankFieldGoalsMade=rank(totalFieldGoalsMade,ties.method="min"),
+                                    rankFieldGoalsAttempted=rank(totalFieldGoalsMade,ties.method="min"),
+                                    rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,ties.method="min"),
+                                    rankThreePointersMade=rank(totalThreePointersMade,ties.method="min"),
+                                    rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                    ties.method="min"),
+                                    rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                     ties.method="min"),
+                                    rankFreeThrowsMade=rank(totalFreeThrowsMade,ties.method="min"),
+                                    rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,ties.method="min"),
+                                    rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage,ties.method="min"),
+                                    rankReboundsOffensive=rank(totalReboundsOffensive,ties.method="min"),
+                                    rankReboundsDefensive=rank(totalReboundsDefensive,ties.method="min"),
+                                    rankRebounds=rank(totalRebounds,ties.method="min"),
+                                    rankAssists=rank(totalAssists,ties.method="min"),
+                                    rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                    rankSteals=rank(totalSteals,ties.method="min"),
+                                    rankBlocks=rank(totalBlocks,ties.method="min"),
+                                    rankOpponentBlocks=rank(totalOpponentBlocks,ties.method="min"),
+                                    rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                    rankFoulsPersonalDrawn=rank(totalDrawnFouls,ties.method="min"),
+                                    rankPoints=rank(totalPoints,ties.method="min"),
+                                    rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,ties.method="min"),
+                                    rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,ties.method="min"))
+
+regular_season_team_summary_stats
+play_off_team_summary_stats
+```
+
+By player, all time
+```{r}
+#Summary statistics by player of all time
+
+regular_season_player_all_time_summary_stats<-regular_season_box_scores|>filter(!grepl("DND|DNP|NWT",comment,ignore.case=TRUE))|>
+                                              group_by(personName,teamName)|>
+                                              summarise(totalMinutesPlayed=sum(minutes),
+                                                        avgMinutesPlayed=mean(minutes),
+                                                        totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                        avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                        sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                        totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                        avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                        totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                        avgFieldGoalPercentage=mean(fieldGoalsPercentage),
+                                                        totalThreePointersMade=sum(threePointersMade),
+                                                        avgThreePointersMade=mean(threePointersMade),
+                                                        sdThreePointersMade=sd(threePointersMade),
+                                                        totalThreePointersAttempted=sum(threePointersAttempted),
+                                                        avgThreePointersAttempted=mean(threePointersAttempted),
+                                                        totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                        avgThreePointersPercentage=mean(threePointersPercentage),
+                                                        totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                        avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                        totalFreeThrowsMade=sum(freeThrowsMade),
+                                                        avgFreeThrowsMade=mean(freeThrowsMade),
+                                                        sdFreeThrowsMade=sd(freeThrowsMade),
+                                                        totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                        avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                        totalReboundsOffensive=sum(reboundsOffensive),
+                                                        avgReboundsOffensive=mean(reboundsOffensive),
+                                                        sdReboundsOffensive=sd(reboundsOffensive),
+                                                        totalReboundsDefensive=sum(reboundsDefensive),
+                                                        avgReboundsDefensive=mean(reboundsDefensive),
+                                                        sdReboundsDefensive=sd(reboundsDefensive),
+                                                        totalRebounds=sum(reboundsTotal),
+                                                        avgRebounds=mean(reboundsTotal),
+                                                        sdRebounds=sd(reboundsTotal),
+                                                        totalAssists=sum(assists),
+                                                        avgAssists=mean(assists),
+                                                        sdAssists=sd(assists),
+                                                        totalSteals=sum(steals),
+                                                        avgSteals=mean(steals),
+                                                        sdSteals=sd(steals),
+                                                        totalBlocks=sum(blocks),
+                                                        avgBlocks=mean(blocks),
+                                                        sdBlocks=sd(blocks),
+                                                        totalTurnovers=sum(turnovers),
+                                                        avgTurnovers=mean(turnovers),
+                                                        sdTurnovers=sd(turnovers),
+                                                        totalFouls=sum(foulsPersonal),
+                                                        avgFouls=mean(foulsPersonal),
+                                                        sdFouls=sd(foulsPersonal),
+                                                        totalPoints=sum(points),
+                                                        avgPoints=mean(points),
+                                                        sdPoints=sd(points),
+                                                        avgPlusMinusPoints=mean(plusMinusPoints),
+                                                        totalPlusMinusPoints=sum(plusMinusPoints))
+
+regular_season_player_all_time_summary_stats<-regular_season_player_all_time_summary_stats|>
+                                              mutate(rankMinutesPlayed=rank(totalMinutesPlayed,
+                                                                            ties.method="min"),
+                                                     rankFieldGoalsMade=rank(totalFieldGoalsMade,
+                                                                             ties.method="min"),
+                                                     rankFieldGoalsAttempted=rank(totalFieldGoalsMade,
+                                                                                  ties.method="min"),
+                                                     rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,
+                                                                                   ties.method="min"),
+                                                     rankThreePointersMade=rank(totalThreePointersMade,
+                                                                                ties.method="min"),
+                                                     rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                                     ties.method="min"),
+                                                     rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                                      ties.method="min"),
+                                                     rankFreeThrowsMade=rank(totalFreeThrowsMade,
+                                                                             ties.method="min"),
+                                                     rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,
+                                                                                  ties.method="min"),
+                                                     rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage,
+                                                                                   ties.method="min"),
+                                                     rankReboundsOffensive=rank(totalReboundsOffensive,
+                                                                                ties.method="min"),
+                                                     rankReboundsDefensive=rank(totalReboundsDefensive,
+                                                                                ties.method="min"),
+                                                     rankRebounds=rank(totalRebounds,ties.method="min"),
+                                                     rankAssists=rank(totalAssists,ties.method="min"),
+                                                     rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                                     rankSteals=rank(totalSteals,ties.method="min"),
+                                                     rankBlocks=rank(totalBlocks,ties.method="min"),
+                                                     rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                                     rankPoints=rank(totalPoints),ties.method="min",
+                                                     rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,
+                                                                                 ties.method="min"),
+                                                     rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,
+                                                                                   ties.method="min"))
+
+play_off_player_all_time_summary_stats<-play_off_box_scores|>
+                                        filter(!grepl("DND|DNP|NWT",comment,ignore.case=TRUE))|>
+                                        group_by(personName,teamName)|>
+                                        summarise(totalMinutesPlayed=sum(minutes),
+                                                  avgMinutesPlayed=mean(minutes),
+                                                  totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                  avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                  sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                  totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                  avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                  totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                  avgFieldGoalPercentage=mean(fieldGoalsPercentage),
+                                                  totalThreePointersMade=sum(threePointersMade),
+                                                  avgThreePointersMade=mean(threePointersMade),
+                                                  sdThreePointersMade=sd(threePointersMade),
+                                                  totalThreePointersAttempted=sum(threePointersAttempted),
+                                                  avgThreePointersAttempted=mean(threePointersAttempted),
+                                                  totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                  avgThreePointersPercentage=mean(threePointersPercentage),
+                                                  totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                  avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                  totalFreeThrowsMade=sum(freeThrowsMade),
+                                                  avgFreeThrowsMade=mean(freeThrowsMade),
+                                                  sdFreeThrowsMade=sd(freeThrowsMade),
+                                                  totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                  avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                  totalReboundsOffensive=sum(reboundsOffensive),
+                                                  avgReboundsOffensive=mean(reboundsOffensive),
+                                                  sdReboundsOffensive=sd(reboundsOffensive),
+                                                  totalReboundsDefensive=sum(reboundsDefensive),
+                                                  avgReboundsDefensive=mean(reboundsDefensive),
+                                                  sdReboundsDefensive=sd(reboundsDefensive),
+                                                  totalRebounds=sum(reboundsTotal),
+                                                  avgRebounds=mean(reboundsTotal),
+                                                  sdRebounds=sd(reboundsTotal),
+                                                  totalAssists=sum(assists),
+                                                  avgAssists=mean(assists),
+                                                  sdAssists=sd(assists),
+                                                  totalSteals=sum(steals),
+                                                  avgSteals=mean(steals),
+                                                  sdSteals=sd(steals),
+                                                  totalBlocks=sum(blocks),
+                                                  avgBlocks=mean(blocks),
+                                                  sdBlocks=sd(blocks),
+                                                  totalTurnovers=sum(turnovers),
+                                                  avgTurnovers=mean(turnovers),
+                                                  sdTurnovers=sd(turnovers),
+                                                  totalFouls=sum(foulsPersonal),
+                                                  avgFouls=mean(foulsPersonal),
+                                                  sdFouls=sd(foulsPersonal),
+                                                  totalPoints=sum(points),
+                                                  avgPoints=mean(points),
+                                                  sdPoints=sd(points),
+                                                  avgPlusMinusPoints=mean(plusMinusPoints),
+                                                  totalPlusMinusPoints=sum(plusMinusPoints))
+
+play_off_player_all_time_summary_stats<-play_off_player_all_time_summary_stats|>
+                                        mutate(rankMinutesPlayed=rank(totalMinutesPlayed,
+                                                                      ties.method="min"),
+                                               rankFieldGoalsMade=rank(totalFieldGoalsMade,
+                                                                       ties.method="min"),
+                                               rankFieldGoalsAttempted=rank(totalFieldGoalsMade,
+                                                                            ties.method="min"),
+                                               rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,
+                                                                             ties.method="min"),
+                                               rankThreePointersMade=rank(totalThreePointersMade,
+                                                                          ties.method="min"),
+                                               rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                               ties.method="min"),
+                                               rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                                ties.method="min"),
+                                               rankFreeThrowsMade=rank(totalFreeThrowsMade,
+                                                                       ties.method="min"),
+                                               rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,
+                                                                            ties.method="min"),
+                                               rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage
+                                                                             ,ties.method="min"),
+                                               rankReboundsOffensive=rank(totalReboundsOffensive,
+                                                                          ties.method="min"),
+                                               rankReboundsDefensive=rank(totalReboundsDefensive,
+                                                                          ties.method="min"),
+                                               rankRebounds=rank(totalRebounds,ties.method="min"),
+                                               rankAssists=rank(totalAssists,ties.method="min"),
+                                               rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                               rankSteals=rank(totalSteals,ties.method="min"),
+                                               rankBlocks=rank(totalBlocks,ties.method="min"),
+                                               rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                               rankPoints=rank(totalPoints),ties.method="min",
+                                               rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,
+                                                                           ties.method="min"),
+                                               rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,
+                                                                                   ties.method="min"))
+
+regular_season_player_all_time_summary_stats
+play_off_player_all_time_summary_stats
+```
+
+By team, all time.
+
+```{r}
+#Summary statistics by team of all time
+
+# To add total minutes all players played on a team per season
+
+regular_season_player_all_time_stats<-regular_season_player_summary_stats|>group_by(teamName)|>
+                                      summarise(totalMinutesPlayersPlayed=sum(totalMinutesPlayed))|>
+                                      select(teamName,totalMinutesPlayersPlayed)
+
+play_off_player_all_time_stats<-play_off_player_summary_stats|>group_by(teamName)|>
+                                summarise(totalMinutesPlayersPlayed=sum(totalMinutesPlayed))|>
+                                select(teamName,totalMinutesPlayersPlayed)
+
+regular_season_team_all_time_summary_stats<-regular_season_totals|>
+                                            group_by(teamName)|>
+                                            summarise(totalWins=sum(str_count(WL,"W")),
+                                                      avgWins=mean(str_count(WL,"W")),
+                                                      totalLosses=sum(str_count(WL,"L")),
+                                                      avgLosses=mean(str_count(WL,"L")),
+                                                      winPercentage=totalWins/totalLosses,
+                                                      totalMinutesPlayed=sum(minutes),
+                                                      avgMinutesPlayed=mean(minutes),
+                                                      totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                      avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                      totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                      avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                      sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                      totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                      avgFieldGoalsPercentage=mean(fieldGoalsPercentage),
+                                                      sdFieldGoalsPercentage=sd(fieldGoalsPercentage),
+                                                      totalThreePointersMade=sum(threePointersMade),
+                                                      avgThreePointersMade=mean(threePointersMade),
+                                                      sdThreePointersMade=sd(threePointersMade),
+                                                      totalThreePointersAttempted=sum(threePointersAttempted),
+                                                      avgThreePointersAttempted=sum(threePointersAttempted),
+                                                      totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                      avgThreePointersPercentage=mean(threePointersPercentage),
+                                                      sdThreePointersPercentage=sd(threePointersPercentage),
+                                                      totalFreeThrowsMade=sum(freeThrowsMade),
+                                                      avgFreeThrowsMade=mean(freeThrowsMade),
+                                                      sdFreeThrowsMade=sd(freeThrowsMade),
+                                                      totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                      avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                      totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                      avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                      sdFreeThrowsPercentage=sd(freeThrowsPercentage),
+                                                      totalReboundsOffensive=sum(reboundsOffensive),
+                                                      avgReboundsOffensive=mean(reboundsOffensive),
+                                                      sdReboundsOffensive=sd(reboundsOffensive),
+                                                      totalReboundsDefensive=sum(reboundsDefensive),
+                                                      avgReboundsDefensive=mean(reboundsDefensive),
+                                                      sdReboundsDefensive=sd(reboundsDefensive),
+                                                      totalRebounds=sum(reboundsTotal),
+                                                      avgRebounds=mean(reboundsTotal),
+                                                      sdRebounds=sd(reboundsTotal),
+                                                      totalAssists=sum(assists),
+                                                      avgAssists=mean(assists),
+                                                      sdAssists=sd(assists),
+                                                      totalTurnovers=sum(turnovers),
+                                                      avgTurnovers=mean(turnovers),
+                                                      sdTurnovers=sd(turnovers),
+                                                      totalSteals=sum(steals),
+                                                      avgSteals=mean(steals),
+                                                      sdSteals=sd(steals),
+                                                      totalBlocks=sum(blocks),
+                                                      avgBlocks=mean(blocks),
+                                                      sdBlocks=sd(blocks),
+                                                      totalOpponentBlocks=sum(opponentBlocks),
+                                                      avgOpponentBlocks=mean(opponentBlocks),
+                                                      sdOpponentBlocks=sd(opponentBlocks),
+                                                      totalFouls=sum(foulsPersonal), 
+                                                      avgFouls=mean(foulsPersonal),
+                                                      sdFouls=sd(foulsPersonal),
+                                                      totalDrawnFouls=sum(foulsPersonalDrawn),
+                                                      avgDrawnFouls=mean(foulsPersonalDrawn),
+                                                      sdDrawnFouls=sd(foulsPersonalDrawn),
+                                                      totalPoints=sum(points),
+                                                      avgPoints=mean(points),
+                                                      sdPoints=sd(points),
+                                                      avgPlusMinusPoints=mean(plusMinusPoints),
+                                                      totalPlusMinusPoints=sum(plusMinusPoints),
+                                                      .groups="keep")
+                                                                                      
+regular_season_team_all_time_summary_stats<-regular_season_team_all_time_summary_stats|>
+                                            left_join(regular_season_player_all_time_stats,by="teamName")|>
+                                            mutate(rankWins=rank(totalWins,ties.method="min"),
+                                                   rankLosses=rank(totalLosses,ties.method="min"),
+                                                   rankMinutesPlayed=rank(totalMinutesPlayed,ties.method="min"),
+                                                   rankFieldGoalsMade=rank(totalFieldGoalsMade,
+                                                                           ties.method="min"),
+                                                   rankFieldGoalsAttempted=rank(totalFieldGoalsMade,
+                                                                                ties.method="min"),
+                                                   rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,
+                                                                                 ties.method="min"),
+                                                   rankThreePointersMade=rank(totalThreePointersMade,
+                                                                              ties.method="min"),
+                                                   rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                                   ties.method="min"),
+                                                   rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                                    ties.method="min"),
+                                                   rankFreeThrowsMade=rank(totalFreeThrowsMade,
+                                                                           ties.method="min"),
+                                                   rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,
+                                                                                ties.method="min"),
+                                                   rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage,
+                                                                                 ties.method="min"),
+                                                   rankReboundsOffensive=rank(totalReboundsOffensive,
+                                                                              ties.method="min"),
+                                                   rankReboundsDefensive=rank(totalReboundsDefensive,
+                                                                              ties.method="min"),
+                                                   rankRebounds=rank(totalRebounds,ties.method="min"),
+                                                   rankAssists=rank(totalAssists,ties.method="min"),
+                                                   rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                                   rankSteals=rank(totalSteals,ties.method="min"),
+                                                   rankBlocks=rank(totalBlocks,ties.method="min"),
+                                                   rankOpponentBlocks=rank(totalOpponentBlocks,
+                                                                           ties.method="min"),
+                                                   rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                                   rankFoulsPersonalDrawn=rank(totalDrawnFouls,
+                                                                               ties.method="min"),
+                                                   rankPoints=rank(totalPoints,ties.method="min"),
+                                                   rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,
+                                                                               ties.method="min"),
+                                                   rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,
+                                                                                 ties.method="min"))
+
+play_off_team_all_time_summary_stats<-play_off_totals|>group_by(teamName)|>
+                                      summarise(totalWins=sum(str_count(WL,"W")),
+                                                avgWins=mean(str_count(WL,"W")),
+                                                totalLosses=sum(str_count(WL,"L")),
+                                                avgLosses=mean(str_count(WL,"L")),
+                                                winPercentage=totalWins/totalLosses,
+                                                totalMinutesPlayed=sum(minutes),
+                                                avgMinutesPlayed=mean(minutes),
+                                                totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                avgFieldGoalsPercentage=mean(fieldGoalsPercentage),
+                                                sdFieldGoalsPercentage=sd(fieldGoalsPercentage),
+                                                totalThreePointersMade=sum(threePointersMade),
+                                                avgThreePointersMade=mean(threePointersMade),
+                                                sdThreePointersMade=sd(threePointersMade),
+                                                totalThreePointersAttempted=sum(threePointersAttempted),
+                                                avgThreePointersAttempted=sum(threePointersAttempted),
+                                                totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                avgThreePointersPercentage=mean(threePointersPercentage),
+                                                sdThreePointersPercentage=sd(threePointersPercentage),
+                                                totalFreeThrowsMade=sum(freeThrowsMade),
+                                                avgFreeThrowsMade=mean(freeThrowsMade),
+                                                sdFreeThrowsMade=sd(freeThrowsMade),
+                                                totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                sdFreeThrowsPercentage=sd(freeThrowsPercentage),
+                                                totalReboundsOffensive=sum(reboundsOffensive),
+                                                avgReboundsOffensive=mean(reboundsOffensive),
+                                                sdReboundsOffensive=sd(reboundsOffensive),
+                                                totalReboundsDefensive=sum(reboundsDefensive),
+                                                avgReboundsDefensive=mean(reboundsDefensive),
+                                                sdReboundsDefensive=sd(reboundsDefensive),
+                                                totalRebounds=sum(reboundsTotal),
+                                                avgRebounds=mean(reboundsTotal),
+                                                sdRebounds=sd(reboundsTotal),
+                                                totalAssists=sum(assists),
+                                                avgAssists=mean(assists),
+                                                sdAssists=sd(assists),
+                                                totalTurnovers=sum(turnovers),
+                                                avgTurnovers=mean(turnovers),
+                                                sdTurnovers=sd(turnovers),
+                                                totalSteals=sum(steals),
+                                                avgSteals=mean(steals),
+                                                sdSteals=sd(steals),
+                                                totalBlocks=sum(blocks),
+                                                avgBlocks=mean(blocks),
+                                                sdBlocks=sd(blocks),
+                                                totalOpponentBlocks=sum(opponentBlocks),
+                                                avgOpponentBlocks=mean(opponentBlocks),
+                                                sdOpponentBlocks=sd(opponentBlocks),
+                                                totalFouls=sum(foulsPersonal),
+                                                avgFouls=mean(foulsPersonal),
+                                                sdFouls=sd(foulsPersonal),
+                                                totalDrawnFouls=sum(foulsPersonalDrawn),
+                                                avgDrawnFouls=mean(foulsPersonalDrawn),
+                                                sdDrawnFouls=sd(foulsPersonalDrawn),
+                                                totalPoints=sum(points),
+                                                avgPoints=mean(points),
+                                                sdPoints=sd(points),
+                                                avgPlusMinusPoints=mean(plusMinusPoints),
+                                                totalPlusMinusPoints=sum(plusMinusPoints),
+                                                .groups="keep")
+
+play_off_team_all_time_summary_stats<-play_off_team_all_time_summary_stats|>
+                                      left_join(play_off_player_all_time_stats,by="teamName")|>
+                                      mutate(rankWins=rank(totalWins,ties.method="min"),
+                                             rankLosses=rank(totalLosses,ties.method="min"),
+                                             rankMinutesPlayed=rank(totalMinutesPlayed,ties.method="min"),
+                                             rankFieldGoalsMade=rank(totalFieldGoalsMade,
+                                                                     ties.method="min"),
+                                             rankFieldGoalsAttempted=rank(totalFieldGoalsMade,
+                                                                          ties.method="min"),
+                                             rankFieldGoalsPercentage=rank(totalFieldGoalsPercentage,
+                                                                           ties.method="min"),
+                                             rankThreePointersMade=rank(totalThreePointersMade,
+                                                                        ties.method="min"),
+                                             rankThreePointersAttempted=rank(totalThreePointersAttempted,
+                                                                             ties.method="min"),
+                                             rankThreePointersPercentage=rank(totalThreePointersPercentage,
+                                                                              ties.method="min"),
+                                             rankFreeThrowsMade=rank(totalFreeThrowsMade,ties.method="min"),
+                                             rankFreeThrowsAttempted=rank(totalFreeThrowsAttempted,
+                                                                          ties.method="min"),
+                                             rankFreeThrowsPercentage=rank(totalFreeThrowsPercentage,
+                                                                           ties.method="min"),
+                                             rankReboundsOffensive=rank(totalReboundsOffensive,
+                                                                        ties.method="min"),
+                                             rankReboundsDefensive=rank(totalReboundsDefensive,
+                                                                        ties.method="min"),
+                                             rankRebounds=rank(totalRebounds,ties.method="min"),
+                                             rankAssists=rank(totalAssists,ties.method="min"),
+                                             rankTurnovers=rank(totalTurnovers,ties.method="min"),
+                                             rankSteals=rank(totalSteals,ties.method="min"),
+                                             rankBlocks=rank(totalBlocks,ties.method="min"),
+                                             rankOpponentBlocks=rank(totalOpponentBlocks,ties.method="min"),
+                                             rankFoulsPersonal=rank(totalFouls,ties.method="min"),
+                                             rankFoulsPersonalDrawn=rank(totalDrawnFouls,ties.method="min"),
+                                             rankPoints=rank(totalPoints),ties.method="min",
+                                             rankAvgPlusMinusPoints=rank(avgPlusMinusPoints,
+                                                                         ties.method="min"),
+                                             rankTotalPlusMinusPoints=rank(totalPlusMinusPoints,
+                                                                           ties.method="min"))
+
+regular_season_team_all_time_summary_stats
+play_off_team_all_time_summary_stats
+```
+
+By position, all time.
+```{r}
+#Summary statistics by position of all time
+
+regular_season_position_all_time_summary_stats<-regular_season_box_scores|>
+                                                filter(!grepl("DND|DNP|NWT",comment,ignore.case=TRUE))|>
+                                                group_by(position)|>
+                                                summarise(totalMinutesPlayed=sum(minutes),
+                                                        avgMinutesPlayed=mean(minutes),
+                                                        totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                        avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                        sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                        totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                        avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                        totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                        avgFieldGoalPercentage=mean(fieldGoalsPercentage),
+                                                        totalThreePointersMade=sum(threePointersMade),
+                                                        avgThreePointersMade=mean(threePointersMade),
+                                                        sdThreePointersMade=sd(threePointersMade),
+                                                        totalThreePointersAttempted=sum(threePointersAttempted),
+                                                        avgThreePointersAttempted=mean(threePointersAttempted),
+                                                        totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                        avgThreePointersPercentage=mean(threePointersPercentage),
+                                                        totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                        avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                        totalFreeThrowsMade=sum(freeThrowsMade),
+                                                        avgFreeThrowsMade=mean(freeThrowsMade),
+                                                        sdFreeThrowsMade=sd(freeThrowsMade),
+                                                        totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                        avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                        totalReboundsOffensive=sum(reboundsOffensive),
+                                                        avgReboundsOffensive=mean(reboundsOffensive),
+                                                        sdReboundsOffensive=sd(reboundsOffensive),
+                                                        totalReboundsDefensive=sum(reboundsDefensive),
+                                                        avgReboundsDefensive=mean(reboundsDefensive),
+                                                        sdReboundsDefensive=sd(reboundsDefensive),
+                                                        totalRebounds=sum(reboundsTotal),
+                                                        avgRebounds=mean(reboundsTotal),
+                                                        sdRebounds=sd(reboundsTotal),
+                                                        totalAssists=sum(assists),
+                                                        avgAssists=mean(assists),
+                                                        sdAssists=sd(assists),
+                                                        totalSteals=sum(steals),
+                                                        avgSteals=mean(steals),
+                                                        sdSteals=sd(steals),
+                                                        totalBlocks=sum(blocks),
+                                                        avgBlocks=mean(blocks),
+                                                        sdBlocks=sd(blocks),
+                                                        totalTurnovers=sum(turnovers),
+                                                        avgTurnovers=mean(turnovers),
+                                                        sdTurnovers=sd(turnovers),
+                                                        totalFouls=sum(foulsPersonal),
+                                                        avgFouls=mean(foulsPersonal),
+                                                        sdFouls=sd(foulsPersonal),
+                                                        totalPoints=sum(points),
+                                                        avgPoints=mean(points),
+                                                        sdPoints=sd(points),
+                                                        avgPlusMinusPoints=mean(plusMinusPoints),
+                                                        totalPlusMinusPoints=sum(plusMinusPoints))
+
+play_off_position_all_time_summary_stats<-play_off_box_scores|>
+                                        filter(!grepl("DND|DNP|NWT",comment,ignore.case=TRUE))|>
+                                        group_by(position)|>
+                                        summarise(totalMinutesPlayed=sum(minutes),
+                                                  avgMinutesPlayed=mean(minutes),
+                                                  totalFieldGoalsMade=sum(fieldGoalsMade),
+                                                  avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                  sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                  totalFieldGoalsAttempted=sum(fieldGoalsAttempted),
+                                                  avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                  totalFieldGoalsPercentage=totalFieldGoalsMade/totalFieldGoalsAttempted,
+                                                  avgFieldGoalPercentage=mean(fieldGoalsPercentage),
+                                                  totalThreePointersMade=sum(threePointersMade),
+                                                  avgThreePointersMade=mean(threePointersMade),
+                                                  sdThreePointersMade=sd(threePointersMade),
+                                                  totalThreePointersAttempted=sum(threePointersAttempted),
+                                                  avgThreePointersAttempted=mean(threePointersAttempted),
+                                                  totalThreePointersPercentage=totalThreePointersMade/totalThreePointersAttempted,
+                                                  avgThreePointersPercentage=mean(threePointersPercentage),
+                                                  totalFreeThrowsAttempted=sum(freeThrowsAttempted),
+                                                  avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                  totalFreeThrowsMade=sum(freeThrowsMade),
+                                                  avgFreeThrowsMade=mean(freeThrowsMade),
+                                                  sdFreeThrowsMade=sd(freeThrowsMade),
+                                                  totalFreeThrowsPercentage=totalFreeThrowsMade/totalFreeThrowsAttempted,
+                                                  avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                  totalReboundsOffensive=sum(reboundsOffensive),
+                                                  avgReboundsOffensive=mean(reboundsOffensive),
+                                                  sdReboundsOffensive=sd(reboundsOffensive),
+                                                  totalReboundsDefensive=sum(reboundsDefensive),
+                                                  avgReboundsDefensive=mean(reboundsDefensive),
+                                                  sdReboundsDefensive=sd(reboundsDefensive),
+                                                  totalRebounds=sum(reboundsTotal),
+                                                  avgRebounds=mean(reboundsTotal),
+                                                  sdRebounds=sd(reboundsTotal),
+                                                  totalAssists=sum(assists),
+                                                  avgAssists=mean(assists),
+                                                  sdAssists=sd(assists),
+                                                  totalSteals=sum(steals),
+                                                  avgSteals=mean(steals),
+                                                  sdSteals=sd(steals),
+                                                  totalBlocks=sum(blocks),
+                                                  avgBlocks=mean(blocks),
+                                                  sdBlocks=sd(blocks),
+                                                  totalTurnovers=sum(turnovers),
+                                                  avgTurnovers=mean(turnovers),
+                                                  sdTurnovers=sd(turnovers),
+                                                  totalFouls=sum(foulsPersonal),
+                                                  avgFouls=mean(foulsPersonal),
+                                                  sdFouls=sd(foulsPersonal),
+                                                  totalPoints=sum(points),
+                                                  avgPoints=mean(points),
+                                                  sdPoints=sd(points),
+                                                  avgPlusMinusPoints=mean(plusMinusPoints),
+                                                  totalPlusMinusPoints=sum(plusMinusPoints))
+
+regular_season_position_all_time_summary_stats
+play_off_position_all_time_summary_stats
+```
+
+By win/loss, all time.
+
+```{r}
+#Summary statistics by win/loss of all time
+
+regular_season_win_loss_all_time_summary_stats<-regular_season_totals|>
+                                                group_by(WL)|>
+                                                summarise(avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                          avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                          sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                          totalFieldGoalsPercentage=sum(fieldGoalsMade)/sum(fieldGoalsAttempted),
+                                                          avgFieldGoalsPercentage=mean(fieldGoalsPercentage),
+                                                          sdFieldGoalsPercentage=sd(fieldGoalsPercentage),
+                                                          avgThreePointersMade=mean(threePointersMade),
+                                                          sdThreePointersMade=sd(threePointersMade),
+                                                          avgThreePointersAttempted=sum(threePointersAttempted),
+                                                          totalThreePointersPercentage=sum(threePointersMade)/sum(threePointersAttempted),
+                                                          avgThreePointersPercentage=mean(threePointersPercentage),
+                                                          sdThreePointersPercentage=sd(threePointersPercentage),
+                                                          avgFreeThrowsMade=mean(freeThrowsMade),
+                                                          sdFreeThrowsMade=sd(freeThrowsMade),
+                                                          avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                          totalFreeThrowsPercentage=sum(freeThrowsMade)/sum(freeThrowsAttempted),
+                                                          avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                          sdFreeThrowsPercentage=sd(freeThrowsPercentage),
+                                                          avgReboundsOffensive=mean(reboundsOffensive),
+                                                          sdReboundsOffensive=sd(reboundsOffensive),
+                                                          avgReboundsDefensive=mean(reboundsDefensive),
+                                                          sdReboundsDefensive=sd(reboundsDefensive),
+                                                          avgRebounds=mean(reboundsTotal),
+                                                          sdRebounds=sd(reboundsTotal),
+                                                          avgAssists=mean(assists),
+                                                          sdAssists=sd(assists),
+                                                          avgTurnovers=mean(turnovers),
+                                                          sdTurnovers=sd(turnovers),
+                                                          avgSteals=mean(steals),
+                                                          sdSteals=sd(steals),
+                                                          avgBlocks=mean(blocks),
+                                                          sdBlocks=sd(blocks),
+                                                          avgOpponentBlocks=mean(opponentBlocks),
+                                                          sdOpponentBlocks=sd(opponentBlocks),
+                                                          avgFouls=mean(foulsPersonal),
+                                                          sdFouls=sd(foulsPersonal),
+                                                          avgDrawnFouls=mean(foulsPersonalDrawn),
+                                                          sdDrawnFouls=sd(foulsPersonalDrawn),
+                                                          avgPoints=mean(points),
+                                                          sdPoints=sd(points),
+                                                          avgPlusMinusPoints=mean(plusMinusPoints),
+                                                          totalPlusMinusPoints=sum(plusMinusPoints),
+                                                          .groups="keep")
+
+play_off_win_loss_all_time_summary_stats<-play_off_totals|>
+                                          group_by(WL)|>
+                                          summarise(avgFieldGoalsAttempted=mean(fieldGoalsAttempted),
+                                                    avgFieldGoalsMade=mean(fieldGoalsMade),
+                                                    sdFieldGoalsMade=sd(fieldGoalsMade),
+                                                    totalFieldGoalsPercentage=sum(fieldGoalsMade)/sum(fieldGoalsAttempted),
+                                                    avgFieldGoalsPercentage=mean(fieldGoalsPercentage),
+                                                    sdFieldGoalsPercentage=sd(fieldGoalsPercentage),
+                                                    avgThreePointersMade=mean(threePointersMade),
+                                                    sdThreePointersMade=sd(threePointersMade),
+                                                    avgThreePointersAttempted=sum(threePointersAttempted),
+                                                    totalThreePointersPercentage=sum(threePointersMade)/sum(threePointersAttempted),
+                                                    avgThreePointersPercentage=mean(threePointersPercentage),
+                                                    sdThreePointersPercentage=sd(threePointersPercentage),
+                                                    avgFreeThrowsMade=mean(freeThrowsMade),
+                                                    sdFreeThrowsMade=sd(freeThrowsMade),
+                                                    avgFreeThrowsAttempted=mean(freeThrowsAttempted),
+                                                    totalFreeThrowsPercentage=sum(freeThrowsMade)/sum(freeThrowsAttempted),
+                                                    avgFreeThrowsPercentage=mean(freeThrowsPercentage),
+                                                    sdFreeThrowsPercentage=sd(freeThrowsPercentage),
+                                                    avgReboundsOffensive=mean(reboundsOffensive),
+                                                    sdReboundsOffensive=sd(reboundsOffensive),
+                                                    avgReboundsDefensive=mean(reboundsDefensive),
+                                                    sdReboundsDefensive=sd(reboundsDefensive),
+                                                    avgRebounds=mean(reboundsTotal),
+                                                    sdRebounds=sd(reboundsTotal),
+                                                    avgAssists=mean(assists),
+                                                    sdAssists=sd(assists),
+                                                    avgTurnovers=mean(turnovers),
+                                                    sdTurnovers=sd(turnovers),
+                                                    avgSteals=mean(steals),
+                                                    sdSteals=sd(steals),
+                                                    avgBlocks=mean(blocks),
+                                                    sdBlocks=sd(blocks),
+                                                    avgOpponentBlocks=mean(opponentBlocks),
+                                                    sdOpponentBlocks=sd(opponentBlocks),
+                                                    avgFouls=mean(foulsPersonal),
+                                                    sdFouls=sd(foulsPersonal),
+                                                    avgDrawnFouls=mean(foulsPersonalDrawn),
+                                                    sdDrawnFouls=sd(foulsPersonalDrawn),
+                                                    avgPoints=mean(points),
+                                                    sdPoints=sd(points),
+                                                    avgPlusMinusPoints=mean(plusMinusPoints),
+                                                    totalPlusMinusPoints=sum(plusMinusPoints),
+                                                    .groups="keep")
+
+regular_season_win_loss_all_time_summary_stats
+play_off_win_loss_all_time_summary_stats
+```
+
+## Advanced Summary Statistics
+
+Advanced metrics for player and team level analysis
+```{r}
+
+#Team statistics to use to expand upon the player summary statistics
+
+regular_season_team_stats<-regular_season_team_summary_stats|>
+                           rename(teamMinutesPlayed=totalMinutesPlayersPlayed,
+                                  teamFreeThrowsAttempted=totalFreeThrowsAttempted,
+                                  teamFieldGoalsAttempted=totalFieldGoalsAttempted,
+                                  teamTurnovers=totalTurnovers)|>
+                                  select(seasonYear,teamName,teamMinutesPlayed,
+                                         teamFreeThrowsAttempted,teamFieldGoalsAttempted,teamTurnovers)
+
+play_off_team_stats<-play_off_team_summary_stats|>
+                     rename(teamMinutesPlayed=totalMinutesPlayersPlayed,
+                            teamFreeThrowsAttempted=totalFreeThrowsAttempted,
+                            teamFieldGoalsAttempted=totalFieldGoalsAttempted,
+                            teamTurnovers=totalTurnovers)|>
+                            select(seasonYear,teamName,teamMinutesPlayed,teamFreeThrowsAttempted,
+                                   teamFieldGoalsAttempted,teamTurnovers)
+
+regular_season_team_all_time_stats<-regular_season_team_all_time_summary_stats|>
+                                    rename(teamMinutesPlayed=totalMinutesPlayersPlayed,
+                                           teamFreeThrowsAttempted=totalFreeThrowsAttempted,
+                                           teamFieldGoalsAttempted=totalFieldGoalsAttempted,
+                                           teamTurnovers=totalTurnovers)|>
+                                           select(teamName,teamMinutesPlayed,teamFreeThrowsAttempted,
+                                                  teamFieldGoalsAttempted,teamTurnovers)
+
+play_off_team_all_time_stats<-play_off_team_all_time_summary_stats|>
+                              rename(teamMinutesPlayed=totalMinutesPlayersPlayed,
+                                     teamFreeThrowsAttempted=totalFreeThrowsAttempted,
+                                     teamFieldGoalsAttempted=totalFieldGoalsAttempted,
+                                     teamTurnovers=totalTurnovers)|>
+                                     select(teamName,teamMinutesPlayed,teamFreeThrowsAttempted,
+                                            teamFieldGoalsAttempted,teamTurnovers)
+
+regular_season_team_stats
+play_off_team_stats
+regular_season_team_all_time_stats
+play_off_team_all_time_stats
+```
+
+```{r}
+
+#Applying the team stats to compute advanced stats for players
+
+regular_season_player_summary_stats<-regular_season_player_summary_stats|>
+                                     left_join(regular_season_team_stats,by=c("seasonYear","teamName"))|>
+    mutate(trueShootingPercentage=totalPoints/(2*(totalFieldGoalsAttempted + (0.44 * totalFreeThrowsAttempted))),
+    effectiveFieldGoalPercentage=(totalFieldGoalsMade + (0.5 * totalThreePointersMade))/totalFieldGoalsAttempted,
+    usagePercentage=((totalFieldGoalsAttempted + 0.44 * totalFreeThrowsAttempted + totalTurnovers)
+                     * teamMinutesPlayed) / (5 * totalMinutesPlayed * 
+                                               (teamFieldGoalsAttempted 
+                                                + (0.44 * teamFreeThrowsAttempted) 
+                                                + teamTurnovers)))
+
+play_off_player_summary_stats<-play_off_player_summary_stats|>
+                              left_join(play_off_team_stats, by=c("seasonYear","teamName"))|>
+    mutate(trueShootingPercentage=totalPoints/(2*(totalFieldGoalsAttempted + (0.44 * totalFreeThrowsAttempted))),
+    effectiveFieldGoalPercentage=(totalFieldGoalsMade + (0.5 * totalThreePointersMade))/totalFieldGoalsAttempted,
+    usagePercentage=((totalFieldGoalsAttempted + 0.44 * totalFreeThrowsAttempted + totalTurnovers)
+                     * teamMinutesPlayed) / (5 * totalMinutesPlayed 
+                                             * (teamFieldGoalsAttempted 
+                                                + (0.44 * teamFreeThrowsAttempted) 
+                                                + teamTurnovers)))
+
+regular_season_player_all_time_summary_stats<-regular_season_player_all_time_summary_stats|>
+                                              left_join(regular_season_team_all_time_stats,by=c("teamName"))|>
+     mutate(trueShootingPercentage=totalPoints/(2*(totalFieldGoalsAttempted + (0.44 * totalFreeThrowsAttempted))),
+            effectiveFieldGoalPercentage=(totalFieldGoalsMade + (0.5 * totalThreePointersMade))/totalFieldGoalsAttempted,
+            usagePercentage=((totalFieldGoalsAttempted + 0.44 * totalFreeThrowsAttempted + totalTurnovers)
+                             * teamMinutesPlayed) / (5 * totalMinutesPlayed 
+                                                     * (teamFieldGoalsAttempted
+                                                        + (0.44 * teamFreeThrowsAttempted)
+                                                        + teamTurnovers)))
+
+play_off_player_all_time_summary_stats<-play_off_player_all_time_summary_stats|>
+                                        left_join(play_off_team_all_time_stats,by=c("teamName"))|>
+            mutate(trueShootingPercentage=totalPoints/(2*(totalFieldGoalsAttempted + (0.44 * totalFreeThrowsAttempted))),
+            effectiveFieldGoalPercentage=(totalFieldGoalsMade  + (0.5 * totalThreePointersMade))/totalFieldGoalsAttempted,
+            usagePercentage=((totalFieldGoalsAttempted + 0.44 * totalFreeThrowsAttempted + totalTurnovers)
+                             * teamMinutesPlayed) / (5 * totalMinutesPlayed 
+                                                     * (teamFieldGoalsAttempted 
+                                                        + (0.44 * teamFreeThrowsAttempted) 
+                                                        + teamTurnovers)))
+
+#Computing advanced stats for teams
+
+regular_season_team_summary_stats<-regular_season_team_summary_stats|>
+                                   mutate(margin_of_victory=2*abs(totalPlusMinusPoints),
+                                          points_per_minute=totalPoints/totalMinutesPlayed,
+                                          assists_per_minute=totalAssists/totalMinutesPlayed,
+                                          rebounds_per_minute=totalRebounds/totalMinutesPlayed,
+                                          possessions=0.96 * ((totalFieldGoalsAttempted 
+                                                               + 0.44 * totalFreeThrowsAttempted) 
+                                                              - totalReboundsOffensive),
+                                          offensiveRating=100*(totalPoints/possessions),
+                                          defensiveRating=100*((totalPoints-totalPlusMinusPoints)))
+
+play_off_team_summary_stats<-play_off_team_summary_stats|>
+                             mutate(margin_of_victory=2*abs(totalPlusMinusPoints),
+                                    points_per_minute=totalPoints/totalMinutesPlayed,
+                                    assists_per_minute=totalAssists/totalMinutesPlayed,
+                                    rebounds_per_minute=totalRebounds/totalMinutesPlayed,
+                                    possessions=0.96 * ((totalFieldGoalsAttempted 
+                                                         + 0.44 * totalFreeThrowsAttempted) 
+                                                        - totalReboundsOffensive),
+                                    offensiveRating=100*(totalPoints/possessions),
+                                    defensiveRating=100*((totalPoints-totalPlusMinusPoints)))
+
+
+regular_season_team_all_time_summary_stats<-regular_season_team_all_time_summary_stats|>
+                                            mutate(margin_of_victory=2*abs(totalPlusMinusPoints),
+                                                  points_per_minute=totalPoints/totalMinutesPlayed,
+                                                  assists_per_minute=totalAssists/totalMinutesPlayed,
+                                                  rebounds_per_minute=totalRebounds/totalMinutesPlayed,
+                                                  possessions=0.96 * ((totalFieldGoalsAttempted 
+                                                                       + 0.44 * totalFreeThrowsAttempted) 
+                                                                      - totalReboundsOffensive),
+                                                  offensiveRating=100*(totalPoints/possessions),
+                                                  defensiveRating=100*((totalPoints-totalPlusMinusPoints)))
+
+play_off_team_all_time_summary_stats<-play_off_team_all_time_summary_stats|> 
+                                      mutate(margin_of_victory=2*abs(totalPlusMinusPoints),
+                                            points_per_minute=totalPoints/totalMinutesPlayed,
+                                            assists_per_minute=totalAssists/totalMinutesPlayed,
+                                            rebounds_per_minute=totalRebounds/totalMinutesPlayed,
+                                            possessions=0.96 * ((totalFieldGoalsAttempted 
+                                                                 + 0.44 * totalFreeThrowsAttempted) 
+                                                                - totalReboundsOffensive),
+                                            offensiveRating=100*(totalPoints/possessions),
+                                            defensiveRating=100*((totalPoints-totalPlusMinusPoints)))
+
+regular_season_player_summary_stats
+play_off_player_summary_stats
+regular_season_player_all_time_summary_stats
+play_off_player_all_time_summary_stats
+regular_season_team_summary_stats
+play_off_team_summary_stats
+regular_season_team_all_time_summary_stats
+play_off_team_all_time_summary_stats
+```
+
+
+
+
+## Seasonal Data
+
+The purpose of the seasonal data is to make season by season analysis simpler by not having to constantly filter for seasons
+```{r}
+#2010-11 Season Data
+
+regular_season_2010_11_box_scores<-regular_season_box_scores|>filter(seasonYear=="2010-11")
+regular_season_2010_11_totals<-regular_season_totals|>filter(seasonYear=="2010-11")
+play_off_2010_11_totals<-play_off_totals|>filter(seasonYear=="2010-11")
+play_off_2010_11_box_scores<-play_off_totals|>filter(seasonYear=="2010-11")
+regular_season_2010_11_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2010-11")
+play_off_2010_11_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2010-11")
+regular_season_2010_11_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2010-11")
+play_off_2010_11_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2010-11")
+
+#2011-12 Season Data
+
+regular_season_2011_12_box_scores<-regular_season_box_scores|>filter(seasonYear=="2011-12")
+regular_season_2011_12_totals<-regular_season_totals|>filter(seasonYear=="2011-12")
+play_off_2011_12_totals<-play_off_totals|>filter(seasonYear=="2011-12")
+play_off_2011_12_box_scores<-play_off_totals|>filter(seasonYear=="2011-12")
+regular_season_2011_12_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2011-12")
+play_off_2011_12_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2011-12")
+regular_season_2011_12_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2011-12")
+play_off_2011_12_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2011-12")
+
+#2012-13 Season Data
+
+regular_season_2012_13_box_scores<-regular_season_box_scores|>filter(seasonYear=="2012-13")
+regular_season_2012_13_totals<-regular_season_totals|>filter(seasonYear=="2012-13")
+play_off_2012_13_totals<-play_off_totals|>filter(seasonYear=="2012-13")
+play_off_2012_13_box_scores<-play_off_totals|>filter(seasonYear=="2012-13")
+regular_season_2012_13_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2012-13")
+play_off_2012_13_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2012-13")
+regular_season_2012_13_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2012-13")
+play_off_2012_13_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2012-13")
+
+#2013-14 Season Data
+
+regular_season_2013_14_box_scores<-regular_season_box_scores|>filter(seasonYear=="2013-14")
+regular_season_2013_14_totals<-regular_season_totals|>filter(seasonYear=="2013-14")
+play_off_2013_14_totals<-play_off_totals|>filter(seasonYear=="2013-14")
+play_off_2013_14_box_scores<-play_off_totals|>filter(seasonYear=="2013-14")
+regular_season_2013_14_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2013-14")
+play_off_2013_14_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2013-14")
+regular_season_2013_14_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2013-14")
+play_off_2013_14_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2013-14")
+
+#2014-15 Season Data
+
+regular_season_2014_15_box_scores<-regular_season_box_scores|>filter(seasonYear=="2014-15")
+regular_season_2014_15_totals<-regular_season_totals|>filter(seasonYear=="2014-15")
+play_off_2014_15_totals<-play_off_totals|>filter(seasonYear=="2014-15")
+play_off_2014_15_box_scores<-play_off_totals|>filter(seasonYear=="2014-15")
+regular_season_2014_15_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2014-15")
+play_off_2014_15_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2014-15")
+regular_season_2014_15_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2014-15")
+play_off_2014_15_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2014-15")
+
+#2015-16 Season Data
+
+regular_season_2015_16_box_scores<-regular_season_box_scores|>filter(seasonYear=="2015-16")
+regular_season_2015_16_totals<-regular_season_totals|>filter(seasonYear=="2015-16")
+play_off_2015_16_totals<-play_off_totals|>filter(seasonYear=="2015-16")
+play_off_2015_16_box_scores<-play_off_totals|>filter(seasonYear=="2015-16")
+regular_season_2015_16_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2015-16")
+play_off_2015_16_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2015-16")
+regular_season_2015_16_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2015-16")
+play_off_2015_16_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2015-16")
+
+#2016-17 Season Data
+
+regular_season_2016_17_box_scores<-regular_season_box_scores|>filter(seasonYear=="2016-17")
+regular_season_2016_17_totals<-regular_season_totals|>filter(seasonYear=="2016-17")
+play_off_2016_17_totals<-play_off_totals|>filter(seasonYear=="2016-17")
+play_off_2016_17_box_scores<-play_off_totals|>filter(seasonYear=="2016-17")
+regular_season_2016_17_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2016-17")
+play_off_2016_17_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2016-17")
+regular_season_2016_17_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2016-17")
+play_off_2016_17_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2016-17")
+
+#2017-18 Season Data
+
+regular_season_2017_18_box_scores<-regular_season_box_scores|>filter(seasonYear=="2017-18")
+regular_season_2017_18_totals<-regular_season_totals|>filter(seasonYear=="2017-18")
+play_off_2017_18_totals<-play_off_totals|>filter(seasonYear=="2017-18")
+play_off_2017_18_box_scores<-play_off_totals|>filter(seasonYear=="2017-18")
+regular_season_2017_18_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2017-18")
+play_off_2017_18_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2017-18")
+regular_season_2017_18_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2017-18")
+play_off_2017_18_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2017-18")
+
+#2018-19 Season Data
+
+regular_season_2018_19_box_scores<-regular_season_box_scores|>filter(seasonYear=="2018-19")
+regular_season_2018_19_totals<-regular_season_totals|>filter(seasonYear=="2018-19")
+play_off_2018_19_totals<-play_off_totals|>filter(seasonYear=="2018-19")
+play_off_2018_19_box_scores<-play_off_totals|>filter(seasonYear=="2018-19")
+regular_season_2018_19_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2018-19")
+play_off_2018_19_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2018-19")
+regular_season_2018_19_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2018-19")
+play_off_2018_19_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2018-19")
+
+#2019-20 Season Data
+
+regular_season_2019_20_box_scores<-regular_season_box_scores|>filter(seasonYear=="2019-20")
+regular_season_2019_20_totals<-regular_season_totals|>filter(seasonYear=="2019-20")
+play_off_2019_20_totals<-play_off_totals|>filter(seasonYear=="2019-20")
+play_off_2019_20_box_scores<-play_off_totals|>filter(seasonYear=="2019-20")
+regular_season_2019_20_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2019-20")
+play_off_2019_20_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2019-20")
+regular_season_2019_20_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2019-20")
+play_off_2019_20_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2019-20")
+
+#2020-  21 Season Data
+
+regular_season_2020_21_box_scores<-regular_season_box_scores|>filter(seasonYear=="2020-21")
+regular_season_2020_21_totals<-regular_season_totals|>filter(seasonYear=="2020-21")
+play_off_2020_21_totals<-play_off_totals|>filter(seasonYear=="2020-21")
+play_off_2020_21_box_scores<-play_off_totals|>filter(seasonYear=="2020-21")
+regular_season_2020_21_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2020-21")
+play_off_2020_21_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2020-21")
+regular_season_2020_21_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2020-21")
+play_off_2020_21_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2020-21")
+
+#2021-22 Season Data
+
+regular_season_2021_22_box_scores<-regular_season_box_scores|>filter(seasonYear=="2021-22")
+regular_season_2021_22_totals<-regular_season_totals|>filter(seasonYear=="2021-22")
+play_off_2021_22_totals<-play_off_totals|>filter(seasonYear=="2021-22")
+play_off_2021_22_box_scores<-play_off_totals|>filter(seasonYear=="2021-22")
+regular_season_2021_22_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2021-22")
+play_off_2021_22_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2021-22")
+regular_season_2021_22_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2021-22")
+play_off_2021_22_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2021-22")
+
+#2022-23 Season Data
+
+regular_season_2022_23_box_scores<-regular_season_box_scores|>filter(seasonYear=="2022-23")
+regular_season_2022_23_totals<-regular_season_totals|>filter(seasonYear=="2022-23")
+play_off_2022_23_totals<-play_off_totals|>filter(seasonYear=="2022-23")
+play_off_2022_23_box_scores<-play_off_totals|>filter(seasonYear=="2022-23")
+regular_season_2022_23_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2022-23")
+play_off_2022_23_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2022-23")
+regular_season_2022_23_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2022-23")
+play_off_2022_23_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2022-23")
+
+#2023-24 Season Data
+
+regular_season_2023_24_box_scores<-regular_season_box_scores|>filter(seasonYear=="2023-24")
+regular_season_2023_24_totals<-regular_season_totals|>filter(seasonYear=="2023-24")
+play_off_2023_24_totals<-play_off_totals|>filter(seasonYear=="2023-24")
+play_off_2023_24_box_scores<-play_off_totals|>filter(seasonYear=="2023-24")
+regular_season_2023_24_player_summary_stats<-regular_season_player_summary_stats|>filter(seasonYear=="2023-24")
+play_off_2023_24_player_summary_stats<-play_off_player_summary_stats|>filter(seasonYear=="2023-24")
+regular_season_2023_24_team_summary_stats<-regular_season_team_summary_stats|>filter(seasonYear=="2023-24")
+play_off_2023_24_team_summary_stats<-play_off_team_summary_stats|>filter(seasonYear=="2023-24")
+```
+
+
+```{r}
+#Testing for data consistency
+
+test_1_figure_1<-regular_season_box_scores|>filter(seasonYear=="2010-11",teamName=="Boston Celtics")|>summarise(totalPoints=sum(points))|>pull()
+test_1_figure_2<-regular_season_team_summary_stats|>filter(seasonYear=="2010-11",teamName=="Boston Celtics")|>pull(totalPoints)
+test_1_figure_1==test_1_figure_2
+
+test_2_figure_1<-play_off_totals|>filter(teamName=="Atlanta Hawks")|>summarise(totalFieldGoalsMade=sum(fieldGoalsMade))|>pull()
+test_2_figure_2<-play_off_box_scores|>filter(teamName=="Atlanta Hawks")|>summarise(totalFieldGoalsMade=sum(fieldGoalsMade))|>pull()
+test_2_figure_1==test_2_figure_2
+```
+
+```{r}
+save(regular_season_player_summary_stats,play_off_player_summary_stats,regular_season_player_all_time_summary_stats,
+     play_off_player_all_time_summary_stats,regular_season_team_summary_stats,play_off_team_summary_stats,regular_season_team_all_time_summary_stats,
+     play_off_team_all_time_summary_stats,regular_season_win_loss_all_time_summary_stats,play_off_win_loss_all_time_summary_stats,
+     regular_season_position_all_time_summary_stats,play_off_position_all_time_summary_stats,regular_season_box_scores,regular_season_totals,play_off_box_scores,play_off_totals,
+     file="wrangled_data.RData")
+```
+
+
+
