@@ -1,1 +1,2 @@
 docs/*.html linguist-vendored
+ *.Rmd linguist-language=R
